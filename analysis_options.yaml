@@ -1,0 +1,17 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  plugins:
+    - custom_lint
+  errors:
+    # freezed / json_serializable가 생성하는 경고 억제
+    invalid_annotation_target: ignore
+  exclude:
+    - '**/*.g.dart'
+    - '**/*.freezed.dart'
+
+linter:
+  rules:
+    prefer_const_constructors: true
+    use_key_in_widget_constructors: true
+    avoid_unnecessary_containers: true

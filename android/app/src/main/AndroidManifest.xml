@@ -1,0 +1,127 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ── 네트워크 (KakaoPay API) ──────────────────────── -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- ── UsageStatsManager (스크린타임 검증) ─────────── -->
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- ── Activity Recognition (걸음수) ───────────────── -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+
+    <!-- ── 알림 (Android 13+) ───────────────────────────── -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- ── 연락처 읽기 (집행자 선택) ───────────────────────── -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
+    <!-- ── 부팅 후 모니터링 자동 시작 ────────────────────── -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- ── Foreground Service (백그라운드 검증) ─────────── -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+
+    <!-- ── Wake Lock ────────────────────────────────────── -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- ── Health Connect 읽기 권한 ─────────────────────── -->
+    <uses-permission android:name="android.permission.health.READ_STEPS" />
+    <uses-permission android:name="android.permission.health.WRITE_STEPS" />
+    <uses-permission android:name="android.permission.health.READ_SLEEP" />
+    <uses-permission android:name="android.permission.health.READ_EXERCISE_SESSION" />
+    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+
+    <!-- ── 외부 앱 쿼리 ──────────────────────────────────── -->
+    <queries>
+        <!-- Health Connect -->
+        <package android:name="com.google.android.apps.healthdata" />
+        <intent>
+            <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+        </intent>
+        <!-- KakaoPay / KakaoTalk -->
+        <package android:name="com.kakao.talk" />
+        <package android:name="com.kakaopay.app" />
+        <!-- 일반 텍스트 처리 (Flutter 기본) -->
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT" />
+            <data android:mimeType="text/plain" />
+        </intent>
+    </queries>
+
+    <application
+        android:label="건다"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="false">
+
+        <!-- Kakao Native App Key — 실제 키로 교체 필요 -->
+        <meta-data
+            android:name="com.kakao.sdk.AppKey"
+            android:value="KAKAO_NATIVE_APP_KEY" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
+
+            <!-- 앱 실행 -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Health Connect 권한 안내 다이얼로그 -->
+            <intent-filter>
+                <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+            </intent-filter>
+
+            <!-- KakaoPay 리다이렉트 딥링크: gunda://kakaopay -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="gunda"
+                    android:host="kakaopay" />
+            </intent-filter>
+        </activity>
+
+        <!-- 백그라운드 서약 검증 서비스 -->
+        <service
+            android:name=".PledgeMonitorService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- 자정 AlarmManager 수신기 -->
+        <receiver
+            android:name=".VerificationAlarmReceiver"
+            android:exported="false" />
+
+        <!-- 부팅 후 알람 재등록 수신기 -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+</manifest>

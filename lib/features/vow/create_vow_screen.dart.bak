@@ -1,0 +1,1891 @@
+import 'package:drift/drift.dart' show Value;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../core/database/app_database.dart';
+import '../../core/providers/database_provider.dart';
+import '../../core/services/usage_stats_service.dart';
+import '../../shared/models/enums.dart';
+import '../../shared/models/pledge_condition.dart';
+import '../../shared/theme/app_theme.dart';
+
+const _deliveryApps = [
+  (package: 'com.woowa.client.android', name: '배달의민족'),
+  (package: 'com.coupang.mobile.eats', name: '쿠팡이츠'),
+  (package: 'kr.co.yogiyo.rokittech', name: '요기요'),
+];
+
+// 디지털 디톡스 프리셋 앱
+const _kPresetScreenTimeApps = [
+  (
+    package: 'com.google.android.youtube',
+    name: '유튜브',
+    icon: Icons.play_circle_outline
+  ),
+  (
+    package: 'com.instagram.android',
+    name: '인스타그램',
+    icon: Icons.camera_alt_outlined
+  ),
+  (
+    package: 'com.zhiliaoapp.musically',
+    name: '틱톡',
+    icon: Icons.music_note_outlined
+  ),
+  (
+    package: 'com.twitter.android',
+    name: 'X (트위터)',
+    icon: Icons.alternate_email
+  ),
+];
+
+String _fmtDate(DateTime d) =>
+    '${d.year}.${d.month.toString().padLeft(2, '0')}.${d.day.toString().padLeft(2, '0')}';
+
+String _fmtHours(double h) {
+  if (h == 0) return '완전 금지';
+  final hrs = h.floor();
+  final mins = ((h - hrs) * 60).round();
+  if (hrs == 0) return '$mins분 이하';
+  if (mins == 0) return '$hrs시간 이하';
+  return '$hrs시간 ${mins}분 이하';
+}
+
+String _fmtMoney(int v) => '${v.toString().replaceAllMapped(
+      RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]},',
+    )}원';
+
+// ─────────────────────────────────────────────────────────
+// Screen
+// ─────────────────────────────────────────────────────────
+
+class CreateVowScreen extends ConsumerStatefulWidget {
+  const CreateVowScreen({super.key});
+
+  @override
+  ConsumerState<CreateVowScreen> createState() =>
+      _CreateVowScreenState();
+}
+
+class _CreateVowScreenState
+    extends ConsumerState<CreateVowScreen> {
+  final _titleCtrl = TextEditingController();
+  final _recipientCtrl = TextEditingController();
+
+  int _step = 0;
+  PledgeType _type = PledgeType.screenTime;
+  late PledgeCondition _condition;
+  int _durationDays = 7;
+  int _penalty = 10000;
+  bool _saving = false;
+
+  // ScreenTime
+  List<String> _selectedScreenTimePackages = [];
+  List<InstalledApp>? _installedUserApps;
+  bool _loadingUserApps = false;
+  bool _hasDurationLimit = true;
+  bool _hasWindowLimit = false;
+  int _windowStartHour = 23;
+  int _windowEndHour = 7;
+
+  // Game
+  List<String> _selectedGamePackages = [];
+  List<InstalledApp>? _installedGames;
+  bool _loadingGames = false;
+
+  // Delivery
+  bool _deliveryFullBan = true;
+  int _deliveryMaxCount = 1;
+
+  static const _stepLabels = [
+    '1조. 목적',
+    '2조. 조건',
+    '3조. 패널티',
+    '4조. 서명',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _condition = PledgeCondition.defaultFor(_type);
+  }
+
+  @override
+  void dispose() {
+    _titleCtrl.dispose();
+    _recipientCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onTypeChanged(PledgeType t) {
+    setState(() {
+      _type = t;
+      _condition = PledgeCondition.defaultFor(t);
+      if (t == PledgeType.game && _installedGames == null) _loadGames();
+      if (t == PledgeType.screenTime && _installedUserApps == null) {
+        _loadUserApps();
+      }
+    });
+  }
+
+  Future<void> _loadUserApps() async {
+    setState(() => _loadingUserApps = true);
+    final apps = await UsageStatsService.getInstalledUserApps();
+    if (mounted) {
+      setState(() {
+        // exclude preset packages from the "other apps" list
+        final presetPkgs =
+            _kPresetScreenTimeApps.map((a) => a.package).toSet();
+        _installedUserApps =
+            apps.where((a) => !presetPkgs.contains(a.packageName)).toList();
+        _loadingUserApps = false;
+      });
+    }
+  }
+
+  Future<void> _loadGames() async {
+    setState(() => _loadingGames = true);
+    final games = await UsageStatsService.getInstalledGames();
+    if (mounted) {
+      setState(() {
+        _installedGames = games;
+        _loadingGames = false;
+      });
+    }
+  }
+
+  String _generateTitle() {
+    switch (_type) {
+      case PledgeType.screenTime:
+        final pkgs = _selectedScreenTimePackages;
+        final prefix = pkgs.isEmpty
+            ? '스마트폰'
+            : pkgs.map((pkg) {
+                final preset = _kPresetScreenTimeApps
+                    .where((a) => a.package == pkg)
+                    .map((a) => a.name)
+                    .firstOrNull;
+                if (preset != null) return preset;
+                return (_installedUserApps ?? [])
+                    .where((a) => a.packageName == pkg)
+                    .map((a) => a.appName)
+                    .firstOrNull ?? pkg.split('.').last;
+              }).take(2).join('·');
+
+        final durPart = _hasDurationLimit
+            ? (_condition.targetValue == 0
+                ? '완전 차단'
+                : _fmtHours(_condition.targetValue))
+            : null;
+        final winPart = _hasWindowLimit
+            ? '${_windowStartHour}시~${_windowEndHour}시 금지'
+            : null;
+
+        if (durPart == '완전 차단') return '$prefix 완전 차단';
+        if (durPart != null && winPart != null) {
+          return '$prefix $durPart + $winPart';
+        }
+        if (winPart != null) return '$prefix $winPart';
+        return '$prefix $durPart';
+
+      case PledgeType.delivery:
+        return _deliveryFullBan
+            ? '배달음식 완전 금지'
+            : '배달음식 하루 $_deliveryMaxCount회 이하';
+
+      case PledgeType.steps:
+        return '하루 ${_condition.toDisplayString()} 달성';
+
+      case PledgeType.sleep:
+        return '${_condition.toDisplayString()} 수면';
+
+      case PledgeType.exercise:
+        return '매일 ${_condition.toDisplayString()} 운동';
+
+      case PledgeType.game:
+        return _condition.targetValue == 0
+            ? '게임 완전 차단'
+            : '게임 하루 ${_condition.targetValue.toInt()}분 이하';
+
+      case PledgeType.custom:
+        return _titleCtrl.text.trim();
+    }
+  }
+
+  PledgeCondition _buildCondition() {
+    if (_type == PledgeType.screenTime) {
+      return PledgeCondition(
+        type: PledgeType.screenTime,
+        targetValue: _hasDurationLimit ? _condition.targetValue : 0,
+        unit: '시간',
+        operator: ConditionOperator.lte,
+        targetApps: _selectedScreenTimePackages.isEmpty
+            ? null
+            : List.unmodifiable(_selectedScreenTimePackages),
+        hasDurationLimit: _hasDurationLimit,
+        windowStartHour: _hasWindowLimit ? _windowStartHour : null,
+        windowEndHour: _hasWindowLimit ? _windowEndHour : null,
+      );
+    }
+    if (_type == PledgeType.delivery) {
+      return PledgeCondition(
+        type: PledgeType.delivery,
+        targetValue:
+            _deliveryFullBan ? 0 : _deliveryMaxCount.toDouble(),
+        unit: '회',
+        operator: ConditionOperator.lte,
+      );
+    }
+    if (_type == PledgeType.game) {
+      return PledgeCondition(
+        type: PledgeType.game,
+        targetValue: _condition.targetValue,
+        unit: '분',
+        operator: ConditionOperator.lte,
+        targetApps: _selectedGamePackages.isEmpty
+            ? null
+            : List.unmodifiable(_selectedGamePackages),
+      );
+    }
+    return _condition;
+  }
+
+  bool get _canNext => switch (_step) {
+        1 => _type == PledgeType.custom
+            ? _titleCtrl.text.trim().isNotEmpty
+            : _type == PledgeType.screenTime
+                ? _hasDurationLimit || _hasWindowLimit
+                : true,
+        3 => _recipientCtrl.text.trim().isNotEmpty && !_saving,
+        _ => true,
+      };
+
+  void _handleNext() {
+    if (_step < 3) {
+      setState(() => _step++);
+    } else {
+      _save();
+    }
+  }
+
+  void _handleBack() {
+    if (_step > 0) {
+      setState(() => _step--);
+    } else {
+      context.pop();
+    }
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final db = ref.read(appDatabaseProvider);
+    final start = DateTime.now();
+    final end = start.add(Duration(days: _durationDays));
+    await db.insertVow(VowsCompanion.insert(
+      userId: 1,
+      title: _generateTitle(),
+      description: const Value(null),
+      pledgeType: _type.name,
+      conditionJson: _buildCondition().toJsonString(),
+      penaltyAmount: _penalty,
+      startDate: start,
+      endDate: end,
+    ));
+    if (mounted) context.pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: GundaColors.bg,
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, size: 18),
+          onPressed: _handleBack,
+        ),
+        title: Text(_stepLabels[_step]),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(2),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(end: (_step + 1) / _stepLabels.length),
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+            builder: (_, v, __) => LinearProgressIndicator(
+              value: v,
+              minHeight: 2,
+              backgroundColor: GundaColors.grey6,
+              color: GundaColors.green,
+            ),
+          ),
+        ),
+      ),
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 200),
+        transitionBuilder: (child, anim) => FadeTransition(
+          opacity: anim,
+          child: child,
+        ),
+        child: KeyedSubtree(
+          key: ValueKey(_step),
+          child: _buildStep(),
+        ),
+      ),
+      bottomNavigationBar: _buildBottomBar(),
+    );
+  }
+
+  Widget _buildStep() => switch (_step) {
+        0 => _StepCategory(
+            selected: _type, onChanged: _onTypeChanged),
+        1 => _StepCondition(
+            type: _type,
+            titleCtrl: _titleCtrl,
+            condition: _condition,
+            onConditionChanged: (c) =>
+                setState(() => _condition = c),
+            // screenTime
+            selectedScreenTimePackages: _selectedScreenTimePackages,
+            installedUserApps: _installedUserApps ?? [],
+            loadingUserApps: _loadingUserApps,
+            onScreenTimePackagesChanged: (pkgs) =>
+                setState(() => _selectedScreenTimePackages = pkgs),
+            hasDurationLimit: _hasDurationLimit,
+            hasWindowLimit: _hasWindowLimit,
+            windowStartHour: _windowStartHour,
+            windowEndHour: _windowEndHour,
+            onDurationToggled: (v) =>
+                setState(() => _hasDurationLimit = v),
+            onWindowToggled: (v) =>
+                setState(() => _hasWindowLimit = v),
+            onWindowStartChanged: (v) =>
+                setState(() => _windowStartHour = v),
+            onWindowEndChanged: (v) =>
+                setState(() => _windowEndHour = v),
+            // game
+            loadingGames: _loadingGames,
+            installedGames: _installedGames ?? [],
+            selectedGamePackages: _selectedGamePackages,
+            onGameSelectionChanged: (pkgs) =>
+                setState(() => _selectedGamePackages = pkgs),
+            // delivery
+            deliveryFullBan: _deliveryFullBan,
+            deliveryMaxCount: _deliveryMaxCount,
+            onDeliveryFullBanChanged: (v) =>
+                setState(() => _deliveryFullBan = v),
+            onDeliveryMaxCountChanged: (v) =>
+                setState(() => _deliveryMaxCount = v),
+          ),
+        2 => _StepPeriod(
+            durationDays: _durationDays,
+            penalty: _penalty,
+            onDurationChanged: (d) =>
+                setState(() => _durationDays = d),
+            onPenaltyChanged: (p) =>
+                setState(() => _penalty = p),
+          ),
+        _ => _StepSummary(
+            type: _type,
+            title: _generateTitle(),
+            condition: _buildCondition(),
+            durationDays: _durationDays,
+            penalty: _penalty,
+            recipientCtrl: _recipientCtrl,
+          ),
+      };
+
+  Widget _buildBottomBar() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+        child: ListenableBuilder(
+          listenable: Listenable.merge([_titleCtrl, _recipientCtrl]),
+          builder: (_, __) => FilledButton(
+            onPressed: _canNext ? _handleNext : null,
+            child: _saving
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white),
+                  )
+                : Text(switch (_step) {
+                    0 => '이것을 건다',
+                    1 => '이대로 한다',
+                    2 => '돈까지 걸었다',
+                    _ => '서약을 체결한다',
+                  }),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Step 0 – Category
+// ─────────────────────────────────────────────────────────
+
+const _categories = [
+  (
+    PledgeType.screenTime,
+    '디지털 디톡스',
+    Icons.phone_android_outlined,
+    '앱 사용 시간 제한'
+  ),
+  (PledgeType.sleep, '수면', Icons.bedtime_outlined, '취침·수면 시간'),
+  (
+    PledgeType.steps,
+    '걸음수',
+    Icons.directions_walk_outlined,
+    '하루 목표 걸음수'
+  ),
+  (
+    PledgeType.exercise,
+    '운동',
+    Icons.fitness_center_outlined,
+    '운동 시간 달성'
+  ),
+  (
+    PledgeType.delivery,
+    '배달음식',
+    Icons.delivery_dining_outlined,
+    '배달앱 사용 제한'
+  ),
+  (
+    PledgeType.game,
+    '게임',
+    Icons.sports_esports_outlined,
+    '게임 시간 제한'
+  ),
+];
+
+class _StepCategory extends StatelessWidget {
+  final PledgeType selected;
+  final ValueChanged<PledgeType> onChanged;
+  const _StepCategory(
+      {required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 0),
+      children: [
+        const Text(
+          '무엇을\n포기할 것입니까?',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            color: GundaColors.white,
+            letterSpacing: -0.4,
+            height: 1.3,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          '가장 끊기 어려운 것부터 시작하십시오.',
+          style: TextStyle(fontSize: 14, color: GundaColors.grey2),
+        ),
+        const SizedBox(height: 24),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate:
+              const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 1.5,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+          ),
+          itemCount: _categories.length,
+          itemBuilder: (_, i) {
+            final (type, label, icon, sub) = _categories[i];
+            final isOn = selected == type;
+            return _CategoryTile(
+              icon: icon,
+              label: label,
+              sub: sub,
+              isSelected: isOn,
+              onTap: () => onChanged(type),
+            );
+          },
+        ),
+        const SizedBox(height: 10),
+        _CategoryTileFull(
+          icon: Icons.edit_outlined,
+          label: '자유 입력',
+          sub: '양심 모드 — 매일 직접 체크',
+          isSelected: selected == PledgeType.custom,
+          onTap: () => onChanged(PledgeType.custom),
+        ),
+      ],
+    );
+  }
+}
+
+class _CategoryTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String sub;
+  final bool isSelected;
+  final VoidCallback onTap;
+  const _CategoryTile(
+      {required this.icon,
+      required this.label,
+      required this.sub,
+      required this.isSelected,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color:
+              isSelected ? GundaColors.greenBg : GundaColors.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? GundaColors.green
+                : GundaColors.border,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon,
+                size: 22,
+                color: isSelected
+                    ? GundaColors.green
+                    : GundaColors.grey2),
+            const Spacer(),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: GundaColors.white)),
+            const SizedBox(height: 2),
+            Text(sub,
+                style: TextStyle(
+                    fontSize: 10,
+                    color: isSelected
+                        ? GundaColors.green
+                        : GundaColors.grey3)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryTileFull extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String sub;
+  final bool isSelected;
+  final VoidCallback onTap;
+  const _CategoryTileFull(
+      {required this.icon,
+      required this.label,
+      required this.sub,
+      required this.isSelected,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color:
+              isSelected ? GundaColors.greenBg : GundaColors.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: isSelected
+                ? GundaColors.green
+                : GundaColors.border,
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon,
+                size: 22,
+                color: isSelected
+                    ? GundaColors.green
+                    : GundaColors.grey2),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: GundaColors.white)),
+                Text(sub,
+                    style: TextStyle(
+                        fontSize: 10,
+                        color: isSelected
+                            ? GundaColors.green
+                            : GundaColors.grey3)),
+              ],
+            ),
+            const Spacer(),
+            if (isSelected)
+              const Icon(Icons.check_circle,
+                  size: 16, color: GundaColors.green),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Step 1 – Condition
+// ─────────────────────────────────────────────────────────
+
+class _StepCondition extends StatelessWidget {
+  final PledgeType type;
+  final TextEditingController titleCtrl;
+  final PledgeCondition condition;
+  final ValueChanged<PledgeCondition> onConditionChanged;
+  // screenTime
+  final List<String> selectedScreenTimePackages;
+  final List<InstalledApp> installedUserApps;
+  final bool loadingUserApps;
+  final ValueChanged<List<String>> onScreenTimePackagesChanged;
+  final bool hasDurationLimit;
+  final bool hasWindowLimit;
+  final int windowStartHour;
+  final int windowEndHour;
+  final ValueChanged<bool> onDurationToggled;
+  final ValueChanged<bool> onWindowToggled;
+  final ValueChanged<int> onWindowStartChanged;
+  final ValueChanged<int> onWindowEndChanged;
+  // game
+  final bool loadingGames;
+  final List<InstalledApp> installedGames;
+  final List<String> selectedGamePackages;
+  final ValueChanged<List<String>> onGameSelectionChanged;
+  // delivery
+  final bool deliveryFullBan;
+  final int deliveryMaxCount;
+  final ValueChanged<bool> onDeliveryFullBanChanged;
+  final ValueChanged<int> onDeliveryMaxCountChanged;
+
+  const _StepCondition({
+    required this.type,
+    required this.titleCtrl,
+    required this.condition,
+    required this.onConditionChanged,
+    required this.selectedScreenTimePackages,
+    required this.installedUserApps,
+    required this.loadingUserApps,
+    required this.onScreenTimePackagesChanged,
+    required this.hasDurationLimit,
+    required this.hasWindowLimit,
+    required this.windowStartHour,
+    required this.windowEndHour,
+    required this.onDurationToggled,
+    required this.onWindowToggled,
+    required this.onWindowStartChanged,
+    required this.onWindowEndChanged,
+    required this.loadingGames,
+    required this.installedGames,
+    required this.selectedGamePackages,
+    required this.onGameSelectionChanged,
+    required this.deliveryFullBan,
+    required this.deliveryMaxCount,
+    required this.onDeliveryFullBanChanged,
+    required this.onDeliveryMaxCountChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+      children: [
+        const Text(
+          '얼마나 독하게\n할 것입니까?',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            color: GundaColors.white,
+            letterSpacing: -0.4,
+            height: 1.3,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          '느슨한 조건은 느슨한 결과를 낳습니다.',
+          style: TextStyle(fontSize: 14, color: GundaColors.grey2),
+        ),
+        const SizedBox(height: 28),
+        // Title only for custom type
+        if (type == PledgeType.custom) ...[
+          const _SectionLabel('서약 제목'),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: titleCtrl,
+            style: const TextStyle(color: GundaColors.white),
+            decoration:
+                const InputDecoration(hintText: '서약 제목을 입력하세요'),
+            autofocus: true,
+          ),
+          const SizedBox(height: 28),
+        ],
+        _buildConditionWidget(),
+      ],
+    );
+  }
+
+  Widget _buildConditionWidget() => switch (type) {
+        PledgeType.screenTime => _ScreenTimeConditionWidget(
+            selectedPackages: selectedScreenTimePackages,
+            timeLimitHours: condition.targetValue.clamp(0, 6).toDouble(),
+            otherApps: installedUserApps,
+            loadingOtherApps: loadingUserApps,
+            onPackagesChanged: onScreenTimePackagesChanged,
+            onTimeLimitChanged: (v) => onConditionChanged(
+              PledgeCondition(
+                type: PledgeType.screenTime,
+                targetValue: v,
+                unit: '시간',
+                operator: ConditionOperator.lte,
+              ),
+            ),
+            hasDurationLimit: hasDurationLimit,
+            hasWindowLimit: hasWindowLimit,
+            windowStartHour: windowStartHour,
+            windowEndHour: windowEndHour,
+            onDurationToggled: onDurationToggled,
+            onWindowToggled: onWindowToggled,
+            onWindowStartChanged: onWindowStartChanged,
+            onWindowEndChanged: onWindowEndChanged,
+          ),
+        PledgeType.delivery => _DeliveryConditionWidget(
+            fullBan: deliveryFullBan,
+            maxCount: deliveryMaxCount,
+            onFullBanChanged: onDeliveryFullBanChanged,
+            onMaxCountChanged: onDeliveryMaxCountChanged,
+          ),
+        PledgeType.game => _GameConditionWidget(
+            loading: loadingGames,
+            games: installedGames,
+            selectedPackages: selectedGamePackages,
+            timeLimitMinutes: condition.targetValue,
+            onSelectionChanged: onGameSelectionChanged,
+            onTimeLimitChanged: (v) => onConditionChanged(
+              PledgeCondition(
+                type: PledgeType.game,
+                targetValue: v,
+                unit: '분',
+                operator: ConditionOperator.lte,
+              ),
+            ),
+          ),
+        _ => _ConditionSlider(
+            condition: condition,
+            onChanged: onConditionChanged,
+          ),
+      };
+}
+
+// ─────────────────────────────────────────────────────────
+// Step 2 – Period & Penalty
+// ─────────────────────────────────────────────────────────
+
+class _StepPeriod extends StatelessWidget {
+  final int durationDays;
+  final int penalty;
+  final ValueChanged<int> onDurationChanged;
+  final ValueChanged<int> onPenaltyChanged;
+
+  const _StepPeriod({
+    required this.durationDays,
+    required this.penalty,
+    required this.onDurationChanged,
+    required this.onPenaltyChanged,
+  });
+
+  static const _durations = [3, 7, 14, 30, 60, 90];
+  static const _penalties = [5000, 10000, 30000, 50000, 100000];
+
+  @override
+  Widget build(BuildContext context) {
+    final start = DateTime.now();
+    final end = start.add(Duration(days: durationDays));
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+      children: [
+        const Text(
+          '얼마를\n걸 것입니까?',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            color: GundaColors.white,
+            letterSpacing: -0.4,
+            height: 1.3,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          '금액이 클수록, 지킬 이유도 커집니다.',
+          style: TextStyle(fontSize: 14, color: GundaColors.grey2),
+        ),
+        const SizedBox(height: 28),
+        const _SectionLabel('서약 기간'),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _durations.map((d) {
+            final isOn = durationDays == d;
+            return GestureDetector(
+              onTap: () => onDurationChanged(d),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 18, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isOn
+                      ? GundaColors.white
+                      : GundaColors.card,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isOn
+                        ? GundaColors.white
+                        : GundaColors.border,
+                  ),
+                ),
+                child: Text('$d일',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isOn
+                          ? GundaColors.bg
+                          : GundaColors.grey1,
+                    )),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(
+              horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: GundaColors.card,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: GundaColors.border),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.calendar_today_outlined,
+                  size: 13, color: GundaColors.grey3),
+              const SizedBox(width: 8),
+              Text(
+                '${_fmtDate(start)}  →  ${_fmtDate(end)}',
+                style: const TextStyle(
+                    fontSize: 13, color: GundaColors.grey1),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 32),
+        const _SectionLabel('위반 시 벌금'),
+        const SizedBox(height: 4),
+        const Text('1회 위반 시 수취인에게 즉시 통보됩니다.',
+            style: TextStyle(
+                fontSize: 12, color: GundaColors.grey3)),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: _penalties.map((amt) {
+            final isOn = penalty == amt;
+            return GestureDetector(
+              onTap: () => onPenaltyChanged(amt),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 18, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isOn
+                      ? GundaColors.white
+                      : GundaColors.card,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isOn
+                        ? GundaColors.white
+                        : GundaColors.border,
+                  ),
+                ),
+                child: Text(_fmtMoney(amt),
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: isOn
+                          ? GundaColors.bg
+                          : GundaColors.grey1,
+                    )),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Step 3 – Summary & Recipient
+// ─────────────────────────────────────────────────────────
+
+class _StepSummary extends StatelessWidget {
+  final PledgeType type;
+  final String title;
+  final PledgeCondition condition;
+  final int durationDays;
+  final int penalty;
+  final TextEditingController recipientCtrl;
+
+  const _StepSummary({
+    required this.type,
+    required this.title,
+    required this.condition,
+    required this.durationDays,
+    required this.penalty,
+    required this.recipientCtrl,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final start = DateTime.now();
+    final end = start.add(Duration(days: durationDays));
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 28, 20, 20),
+      children: [
+        // Psychological tension header
+        const Text(
+          '이 조건, 지킬 수 있습니까?',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w900,
+            color: GundaColors.white,
+            letterSpacing: -0.4,
+          ),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          '아니라면 지금 멈추십시오.',
+          style: TextStyle(
+            fontSize: 14,
+            color: GundaColors.grey2,
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Contract clause block
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: GundaColors.card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: GundaColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: GundaColors.white,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Divider(height: 1, color: GundaColors.border),
+              const SizedBox(height: 16),
+              Text(
+                '${condition.toDisplayString()}.\n'
+                '$durationDays일 동안 유지한다.\n\n'
+                '위반 시 ${_fmtMoney(penalty)}은 즉시 송금된다.',
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: GundaColors.grey1,
+                  height: 1.7,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Divider(height: 1, color: GundaColors.border),
+              const SizedBox(height: 12),
+              Text(
+                '${_fmtDate(start)}  →  ${_fmtDate(end)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: GundaColors.grey3,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 28),
+        const _SectionLabel('돈을 받을 사람'),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: recipientCtrl,
+          style: const TextStyle(color: GundaColors.white),
+          decoration: const InputDecoration(
+              hintText: '돈을 받을 사람 이름 입력'),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          '이 사람은 당신이 실패하길 기다립니다.',
+          style: TextStyle(fontSize: 12, color: GundaColors.grey3),
+        ),
+
+        const SizedBox(height: 24),
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: const Color(0xFF2A1010),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: const Color(0xFF5A2020), width: 1),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.warning_amber_rounded,
+                  size: 15, color: GundaColors.red),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '서약 시작 후에는 취소할 수 없습니다..',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: GundaColors.red,
+                      height: 1.6),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Condition widgets
+// ─────────────────────────────────────────────────────────
+
+// ── 디지털 디톡스 ──────────────────────────────────────────
+
+class _ScreenTimeConditionWidget extends StatefulWidget {
+  final List<String> selectedPackages;
+  final double timeLimitHours;
+  final List<InstalledApp> otherApps;
+  final bool loadingOtherApps;
+  final ValueChanged<List<String>> onPackagesChanged;
+  final ValueChanged<double> onTimeLimitChanged;
+  // duration + window
+  final bool hasDurationLimit;
+  final bool hasWindowLimit;
+  final int windowStartHour;
+  final int windowEndHour;
+  final ValueChanged<bool> onDurationToggled;
+  final ValueChanged<bool> onWindowToggled;
+  final ValueChanged<int> onWindowStartChanged;
+  final ValueChanged<int> onWindowEndChanged;
+
+  const _ScreenTimeConditionWidget({
+    required this.selectedPackages,
+    required this.timeLimitHours,
+    required this.otherApps,
+    required this.loadingOtherApps,
+    required this.onPackagesChanged,
+    required this.onTimeLimitChanged,
+    required this.hasDurationLimit,
+    required this.hasWindowLimit,
+    required this.windowStartHour,
+    required this.windowEndHour,
+    required this.onDurationToggled,
+    required this.onWindowToggled,
+    required this.onWindowStartChanged,
+    required this.onWindowEndChanged,
+  });
+
+  @override
+  State<_ScreenTimeConditionWidget> createState() =>
+      _ScreenTimeConditionWidgetState();
+}
+
+class _ScreenTimeConditionWidgetState
+    extends State<_ScreenTimeConditionWidget> {
+  bool _otherAppsExpanded = false;
+
+  void _toggle(String pkg) {
+    final updated = List<String>.from(widget.selectedPackages);
+    updated.contains(pkg) ? updated.remove(pkg) : updated.add(pkg);
+    widget.onPackagesChanged(updated);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionLabel('금지할 앱'),
+        const SizedBox(height: 4),
+        const Text(
+          '선택하지 않으면 전체 스크린 타임에 적용됩니다.',
+          style:
+              TextStyle(fontSize: 12, color: GundaColors.grey3),
+        ),
+        const SizedBox(height: 12),
+
+        // 2×2 preset grid
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate:
+              const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 2.8,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+          ),
+          itemCount: _kPresetScreenTimeApps.length,
+          itemBuilder: (_, i) {
+            final app = _kPresetScreenTimeApps[i];
+            final isOn =
+                widget.selectedPackages.contains(app.package);
+            return GestureDetector(
+              onTap: () => _toggle(app.package),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isOn
+                      ? GundaColors.greenBg
+                      : GundaColors.card,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isOn
+                        ? GundaColors.green
+                        : GundaColors.border,
+                    width: isOn ? 1.5 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(app.icon,
+                        size: 16,
+                        color: isOn
+                            ? GundaColors.green
+                            : GundaColors.grey2),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        app.name,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: isOn
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                          color: isOn
+                              ? GundaColors.white
+                              : GundaColors.grey1,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (isOn)
+                      const Icon(Icons.check,
+                          size: 12, color: GundaColors.green),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+
+        // "다른 앱 선택" expandable tile
+        GestureDetector(
+          onTap: () =>
+              setState(() => _otherAppsExpanded = !_otherAppsExpanded),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: _otherAppsExpanded
+                  ? GundaColors.grey6
+                  : GundaColors.card,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: GundaColors.border),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  _otherAppsExpanded
+                      ? Icons.expand_less
+                      : Icons.add,
+                  size: 16,
+                  color: GundaColors.grey2,
+                ),
+                const SizedBox(width: 10),
+                const Text('다른 앱 선택',
+                    style: TextStyle(
+                        fontSize: 13, color: GundaColors.grey1)),
+                const Spacer(),
+                // show count of other-app selections
+                Builder(builder: (_) {
+                  final otherPkgs = widget.selectedPackages
+                      .where((pkg) => !_kPresetScreenTimeApps
+                          .any((a) => a.package == pkg))
+                      .length;
+                  if (otherPkgs > 0) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: GundaColors.green,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text('$otherPkgs',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              color: GundaColors.white,
+                              fontWeight: FontWeight.w700)),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                }),
+              ],
+            ),
+          ),
+        ),
+
+        // Expanded other-apps list
+        if (_otherAppsExpanded) ...[
+          const SizedBox(height: 2),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 260),
+            decoration: BoxDecoration(
+              border: Border.all(color: GundaColors.border),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: widget.loadingOtherApps
+                ? const Center(
+                    child: Padding(
+                        padding: EdgeInsets.all(24),
+                        child: CircularProgressIndicator(
+                            color: GundaColors.white)))
+                : widget.otherApps.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('설치된 앱이 없습니다.',
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: GundaColors.grey3)),
+                      )
+                    : ListView.builder(
+                        padding: EdgeInsets.zero,
+                        itemCount: widget.otherApps.length,
+                        itemBuilder: (_, i) {
+                          final app = widget.otherApps[i];
+                          final isOn = widget.selectedPackages
+                              .contains(app.packageName);
+                          return CheckboxListTile(
+                            value: isOn,
+                            onChanged: (_) =>
+                                _toggle(app.packageName),
+                            title: Text(app.appName,
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    color: GundaColors.white)),
+                            dense: true,
+                            controlAffinity:
+                                ListTileControlAffinity.trailing,
+                          );
+                        },
+                      ),
+          ),
+        ],
+
+        const SizedBox(height: 32),
+
+        // ── 사용시간 제한 ────────────────────────────────────
+        _ConstraintHeader(
+          label: '사용시간 제한',
+          sub: '하루 총 사용 시간 상한',
+          value: widget.hasDurationLimit,
+          onChanged: widget.onDurationToggled,
+        ),
+        if (widget.hasDurationLimit) ...[
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                _fmtHours(widget.timeLimitHours),
+                style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: GundaColors.white,
+                    letterSpacing: -0.3),
+              ),
+              const Text('하루 기준',
+                  style: TextStyle(
+                      fontSize: 12, color: GundaColors.grey3)),
+            ],
+          ),
+          Slider(
+            value: widget.timeLimitHours,
+            min: 0,
+            max: 6,
+            divisions: 12,
+            onChanged: widget.onTimeLimitChanged,
+          ),
+          const Text('0 = 완전 금지',
+              style: TextStyle(
+                  fontSize: 11, color: GundaColors.grey3)),
+        ],
+
+        const SizedBox(height: 16),
+
+        // ── 시간대 금지 ──────────────────────────────────────
+        _ConstraintHeader(
+          label: '시간대 금지',
+          sub: '특정 시간대에 사용 금지',
+          value: widget.hasWindowLimit,
+          onChanged: widget.onWindowToggled,
+        ),
+        if (widget.hasWindowLimit) ...[
+          const SizedBox(height: 14),
+          _HourPicker(
+            label: '금지 시작',
+            hour: widget.windowStartHour,
+            onChanged: widget.onWindowStartChanged,
+          ),
+          const SizedBox(height: 10),
+          _HourPicker(
+            label: '금지 종료',
+            hour: widget.windowEndHour,
+            onChanged: widget.onWindowEndChanged,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '자정을 넘어 설정 가능 (예: 23시 → 07시)',
+            style: TextStyle(
+                fontSize: 11, color: GundaColors.grey3),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// 제한 조건 카드 토글 (Switch + 레이블)
+class _ConstraintHeader extends StatelessWidget {
+  final String label;
+  final String sub;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  const _ConstraintHeader({
+    required this.label,
+    required this.sub,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: value ? GundaColors.greenBg : GundaColors.card,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: value ? GundaColors.green : GundaColors.border,
+            width: value ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: value
+                          ? GundaColors.white
+                          : GundaColors.grey1,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    sub,
+                    style: const TextStyle(
+                        fontSize: 11, color: GundaColors.grey3),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: value,
+              onChanged: onChanged,
+              activeColor: GundaColors.green,
+              inactiveThumbColor: GundaColors.grey4,
+              inactiveTrackColor: GundaColors.grey5,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// 시간(0–23) 증감 피커
+class _HourPicker extends StatelessWidget {
+  final String label;
+  final int hour;
+  final ValueChanged<int> onChanged;
+  const _HourPicker(
+      {required this.label,
+      required this.hour,
+      required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 68,
+          child: Text(label,
+              style: const TextStyle(
+                  fontSize: 13, color: GundaColors.grey1)),
+        ),
+        IconButton(
+          onPressed: () => onChanged((hour - 1 + 24) % 24),
+          icon: const Icon(Icons.remove_circle_outline,
+              color: GundaColors.grey2),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 36,
+          child: Text(
+            '${hour.toString().padLeft(2, '0')}시',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: GundaColors.white),
+          ),
+        ),
+        const SizedBox(width: 12),
+        IconButton(
+          onPressed: () => onChanged((hour + 1) % 24),
+          icon: const Icon(Icons.add_circle_outline,
+              color: GundaColors.grey2),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        ),
+      ],
+    );
+  }
+}
+
+class _ConditionSlider extends StatelessWidget {
+  final PledgeCondition condition;
+  final ValueChanged<PledgeCondition> onChanged;
+  const _ConditionSlider(
+      {required this.condition, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final isSteps = condition.type == PledgeType.steps;
+    final max = isSteps ? 30000.0 : 24.0;
+    final divisions = isSteps ? 300 : 48;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(condition.toDisplayString(),
+                style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: GundaColors.white)),
+            Text(
+              condition.operator == ConditionOperator.lte
+                  ? '이하'
+                  : '이상',
+              style: const TextStyle(
+                  fontSize: 12, color: GundaColors.grey3),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Slider(
+          value: condition.targetValue.clamp(0, max).toDouble(),
+          min: 0,
+          max: max,
+          divisions: divisions,
+          onChanged: (v) => onChanged(PledgeCondition(
+            type: condition.type,
+            targetValue: v,
+            unit: condition.unit,
+            operator: condition.operator,
+          )),
+        ),
+      ],
+    );
+  }
+}
+
+class _DeliveryConditionWidget extends StatelessWidget {
+  final bool fullBan;
+  final int maxCount;
+  final ValueChanged<bool> onFullBanChanged;
+  final ValueChanged<int> onMaxCountChanged;
+
+  const _DeliveryConditionWidget({
+    required this.fullBan,
+    required this.maxCount,
+    required this.onFullBanChanged,
+    required this.onMaxCountChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: GundaColors.card,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: GundaColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('검증 대상 앱',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: GundaColors.grey3,
+                      letterSpacing: 0.1)),
+              const SizedBox(height: 10),
+              ..._deliveryApps.map((app) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        const Icon(
+                            Icons.delivery_dining_outlined,
+                            size: 14,
+                            color: GundaColors.grey3),
+                        const SizedBox(width: 8),
+                        Text(app.name,
+                            style: const TextStyle(
+                                fontSize: 13,
+                                color: GundaColors.grey1)),
+                      ],
+                    ),
+                  )),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        _OptionTile(
+          label: '완전 금지',
+          sub: '배달앱 실행 자체를 금지',
+          selected: fullBan,
+          onTap: () => onFullBanChanged(true),
+        ),
+        const SizedBox(height: 8),
+        _OptionTile(
+          label: '횟수 제한',
+          sub: '하루 $maxCount회 이하',
+          selected: !fullBan,
+          onTap: () => onFullBanChanged(false),
+        ),
+        if (!fullBan) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Text('하루 최대',
+                  style: TextStyle(
+                      fontSize: 13, color: GundaColors.grey1)),
+              const Spacer(),
+              IconButton(
+                onPressed: maxCount > 1
+                    ? () => onMaxCountChanged(maxCount - 1)
+                    : null,
+                icon: const Icon(Icons.remove_circle_outline,
+                    color: GundaColors.grey2),
+              ),
+              Text('$maxCount회',
+                  style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: GundaColors.white)),
+              IconButton(
+                onPressed: maxCount < 10
+                    ? () => onMaxCountChanged(maxCount + 1)
+                    : null,
+                icon: const Icon(Icons.add_circle_outline,
+                    color: GundaColors.grey2),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _GameConditionWidget extends StatelessWidget {
+  final bool loading;
+  final List<InstalledApp> games;
+  final List<String> selectedPackages;
+  final double timeLimitMinutes;
+  final ValueChanged<List<String>> onSelectionChanged;
+  final ValueChanged<double> onTimeLimitChanged;
+
+  const _GameConditionWidget({
+    required this.loading,
+    required this.games,
+    required this.selectedPackages,
+    required this.timeLimitMinutes,
+    required this.onSelectionChanged,
+    required this.onTimeLimitChanged,
+  });
+
+  void _toggle(String pkg) {
+    final updated = List<String>.from(selectedPackages);
+    updated.contains(pkg) ? updated.remove(pkg) : updated.add(pkg);
+    onSelectionChanged(updated);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              timeLimitMinutes == 0
+                  ? '완전 금지'
+                  : '하루 ${timeLimitMinutes.toInt()}분 이하',
+              style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: GundaColors.white),
+            ),
+            const Text('이하로 제한',
+                style: TextStyle(
+                    fontSize: 12, color: GundaColors.grey3)),
+          ],
+        ),
+        Slider(
+          value: timeLimitMinutes.clamp(0, 360).toDouble(),
+          min: 0,
+          max: 360,
+          divisions: 36,
+          onChanged: onTimeLimitChanged,
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            const Text('제한할 게임',
+                style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: GundaColors.white)),
+            if (selectedPackages.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Text('${selectedPackages.length}개 선택',
+                  style: const TextStyle(
+                      fontSize: 11, color: GundaColors.grey3)),
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (loading)
+          const Center(
+              child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: CircularProgressIndicator(
+                      color: GundaColors.white)))
+        else if (games.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: GundaColors.card,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: GundaColors.border),
+            ),
+            child: const Center(
+              child: Text('설치된 게임 앱이 없습니다.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 13,
+                      color: GundaColors.grey3)),
+            ),
+          )
+        else
+          Container(
+            decoration: BoxDecoration(
+              border: Border.all(color: GundaColors.border),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: games.map((game) {
+                final isOn =
+                    selectedPackages.contains(game.packageName);
+                return CheckboxListTile(
+                  value: isOn,
+                  onChanged: (_) => _toggle(game.packageName),
+                  title: Text(game.appName,
+                      style: const TextStyle(
+                          fontSize: 14,
+                          color: GundaColors.white)),
+                  secondary: game.icon != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.memory(game.icon!,
+                              width: 36, height: 36))
+                      : const Icon(
+                          Icons.sports_esports_outlined,
+                          size: 36,
+                          color: GundaColors.grey2),
+                  controlAffinity:
+                      ListTileControlAffinity.trailing,
+                );
+              }).toList(),
+            ),
+          ),
+        const SizedBox(height: 6),
+        const Text('선택하지 않으면 모든 게임에 적용됩니다.',
+            style: TextStyle(
+                fontSize: 11, color: GundaColors.grey3)),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// Shared small widgets
+// ─────────────────────────────────────────────────────────
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(text,
+        style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: GundaColors.grey3,
+            letterSpacing: 0.2));
+  }
+}
+
+class _OptionTile extends StatelessWidget {
+  final String label;
+  final String sub;
+  final bool selected;
+  final VoidCallback onTap;
+  const _OptionTile(
+      {required this.label,
+      required this.sub,
+      required this.selected,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(
+            horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color:
+              selected ? GundaColors.greenBg : GundaColors.card,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected
+                ? GundaColors.green
+                : GundaColors.border,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: selected
+                              ? GundaColors.white
+                              : GundaColors.grey1)),
+                  Text(sub,
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: selected
+                              ? GundaColors.green
+                              : GundaColors.grey3)),
+                ],
+              ),
+            ),
+            if (selected)
+              const Icon(Icons.check_circle,
+                  size: 16, color: GundaColors.green),
+          ],
+        ),
+      ),
+    );
+  }
+}

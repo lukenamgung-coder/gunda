@@ -1,0 +1,86 @@
+name: gunda
+description: "자기 규율 서약 앱 — 기기 데이터로 자동 검증하고 위반 시 카카오페이로 제재합니다."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.4
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # ── State Management ──────────────────────────────────
+  flutter_riverpod: ^3.1.0
+  riverpod_annotation: ^4.0.0
+
+  # ── Navigation ────────────────────────────────────────
+  go_router: ^17.2.0
+
+  # ── Database (Drift + SQLite) ─────────────────────────
+  drift: ^2.22.1
+  sqlite3_flutter_libs: ^0.5.0
+  path_provider: ^2.1.5
+  path: ^1.9.1
+
+  # ── Network ───────────────────────────────────────────
+  dio: ^5.8.0+1
+
+  # ── Code-gen annotations ──────────────────────────────
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.9.0
+
+  # ── Android Permissions ───────────────────────────────
+  permission_handler: ^12.0.0+1
+
+  # ── Health Connect (수면·걸음수·운동) ─────────────────
+  health: ^13.3.1
+
+  # ── App Usage Stats / UsageStatsManager ───────────────
+  app_usage: ^4.1.0
+
+  # ── Kakao SDK (로그인 → KakaoPay 연동) ────────────────
+  kakao_flutter_sdk_user: ^2.0.0+1
+
+  # ── Deep-link (KakaoPay 콜백) ─────────────────────────
+  app_links: ^7.0.0
+
+  # ── WebView (KakaoPay 결제창) ─────────────────────────
+  webview_flutter: ^4.10.0
+
+  # ── Local Notifications (Sprint 2 준비) ─────────────────
+  flutter_local_notifications: ^18.0.1
+
+  # ── Persistence ───────────────────────────────────────
+  shared_preferences: ^2.3.0
+
+  # ── Contacts ──────────────────────────────────────────
+  flutter_contacts: ^1.1.9+2
+
+  # ── Phone / SMS intent ────────────────────────────────
+  url_launcher: ^6.3.0
+
+  # ── Utilities ─────────────────────────────────────────
+  intl: ^0.20.2
+  uuid: ^4.5.1
+
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+  # ── Code generation ───────────────────────────────────
+  build_runner: ^2.4.15
+  drift_dev: ^2.22.1
+  riverpod_generator: ^4.0.0+1
+  freezed: ^3.2.3
+  json_serializable: ^6.9.0
+
+  # ── Linting ───────────────────────────────────────────
+  custom_lint: ^0.8.1
+  riverpod_lint: ^3.1.0
+
+flutter:
+  uses-material-design: true

@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>건다 Gunda — UI 스펙</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #0e0e0e; color: #fff; padding: 2rem; }
+  .page { max-width: 1200px; margin: 0 auto; }
+
+  /* ─── 헤더 ─── */
+  .header { margin-bottom: 3rem; border-bottom: 0.5px solid #222; padding-bottom: 2rem; }
+  .brand { font-size: 36px; font-weight: 900; letter-spacing: -1px; }
+  .brand-en { font-size: 13px; color: #444; letter-spacing: 3px; margin-top: 4px; }
+  .slogan { font-size: 14px; color: #555; margin-top: 8px; font-style: italic; }
+  .meta-row { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .chip { font-size: 11px; background: #1a1a1a; border: 0.5px solid #333; border-radius: 4px; padding: 3px 10px; color: #888; }
+
+  /* ─── 섹션 ─── */
+  .section { margin-bottom: 4rem; }
+  .section-title { font-size: 11px; color: #444; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 1.5rem; padding-bottom: 8px; border-bottom: 0.5px solid #1a1a1a; }
+
+  /* ─── 폰 프레임 ─── */
+  .screens { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .screen-wrap { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+  .screen-label { font-size: 10px; color: #444; letter-spacing: 0.1em; text-transform: uppercase; text-align: center; }
+  .phone { background: #111; border-radius: 36px; width: 200px; overflow: hidden; border: 5px solid #1e1e1e; display: flex; flex-direction: column; }
+  .sb { display: flex; justify-content: space-between; padding: 12px 16px 0; }
+  .sb-t { font-size: 11px; font-weight: 600; color: #fff; font-family: inherit; }
+  .sb-i { display: flex; gap: 3px; align-items: center; }
+  .si { width: 3px; height: 3px; border-radius: 50%; background: #fff; }
+  .inner { flex: 1; padding: 18px 15px 22px; display: flex; flex-direction: column; justify-content: space-between; }
+
+  /* ─── 공통 컴포넌트 ─── */
+  .step-bar { display: flex; gap: 4px; margin-bottom: 16px; }
+  .seg { flex: 1; height: 2px; border-radius: 1px; background: #2a2a2a; }
+  .seg.on { background: #fff; }
+  .seg.done { background: #555; }
+  .q { font-weight: 900; font-size: 17px; color: #fff; line-height: 1.4; letter-spacing: -0.3px; margin: 0 0 14px; }
+  .sub { font-size: 11px; color: #666; line-height: 1.65; }
+  .tag-sm { font-size: 9px; color: #444; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px; }
+  .btn-w { background: #fff; color: #111; border-radius: 10px; padding: 11px 0; font-size: 12px; font-weight: 700; text-align: center; margin-top: 12px; }
+  .btn-ghost { color: #444; font-size: 10px; text-align: center; margin-top: 8px; }
+  .dots { display: flex; gap: 5px; justify-content: center; margin-top: 12px; }
+  .dot { width: 4px; height: 4px; border-radius: 50%; background: #333; }
+  .dot.on { background: #fff; width: 16px; border-radius: 2px; }
+  .card { background: #1a1a1a; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+  .card.viol { border-left: 3px solid #E24B4A; background: #1f1515; }
+  .card-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .card-name { font-size: 13px; font-weight: 600; color: #fff; }
+  .card-sub { font-size: 10px; color: #666; margin-top: 1px; }
+  .badge { font-size: 9px; border-radius: 3px; padding: 2px 6px; font-weight: 500; }
+  .badge-ok { background: #0F3D2E; color: #1D9E75; }
+  .badge-fail { background: #3D1515; color: #E24B4A; }
+  .pr { display: flex; align-items: center; gap: 6px; }
+  .pb { flex: 1; height: 3px; background: #2a2a2a; border-radius: 2px; }
+  .pf { height: 3px; border-radius: 2px; }
+  .pp { font-size: 10px; color: #555; min-width: 26px; text-align: right; }
+  .meta { display: flex; justify-content: space-between; margin-top: 6px; }
+  .mi { font-size: 10px; color: #555; }
+  .mv { color: #888; }
+  .streak-chip { display: inline-flex; align-items: center; gap: 4px; background: #222; border-radius: 6px; padding: 3px 8px; }
+  .sf { width: 5px; height: 5px; border-radius: 50%; background: #1D9E75; }
+  .st { font-size: 10px; color: #1D9E75; }
+  .sec-lbl { font-size: 10px; color: #555; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+  .bnav { display: flex; justify-content: space-around; padding: 10px 0 2px; border-top: 0.5px solid #222; margin-top: 8px; }
+  .ni { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .nic { width: 18px; height: 18px; border-radius: 4px; background: #2a2a2a; }
+  .nic.on { background: #1D9E75; }
+  .nl { font-size: 9px; color: #555; }
+  .nl.on { color: #1D9E75; }
+  .opt { background: #1a1a1a; border-radius: 10px; padding: 11px 13px; margin-bottom: 7px; display: flex; align-items: center; justify-content: space-between; }
+  .opt.sel { background: #fff; }
+  .opt-txt { font-size: 12px; font-weight: 600; color: #fff; }
+  .opt.sel .opt-txt { color: #111; }
+  .opt-sub2 { font-size: 10px; color: #555; margin-top: 1px; }
+  .opt.sel .opt-sub2 { color: #888; }
+  .arr { font-size: 11px; color: #333; }
+  .opt.sel .arr { color: #aaa; }
+  .input-box { background: #1a1a1a; border-radius: 10px; padding: 11px 13px; margin-bottom: 8px; }
+  .il { font-size: 10px; color: #444; letter-spacing: 0.06em; margin-bottom: 5px; }
+  .iv { font-size: 20px; font-weight: 900; color: #fff; letter-spacing: -0.5px; }
+  .iu { font-size: 11px; color: #555; margin-left: 3px; }
+  .sl-track { height: 3px; background: #2a2a2a; border-radius: 2px; margin-top: 8px; position: relative; }
+  .sl-fill { height: 3px; background: #fff; border-radius: 2px; }
+  .sl-thumb { width: 13px; height: 13px; border-radius: 50%; background: #fff; position: absolute; top: -5px; }
+  .sum-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 0.5px solid #1e1e1e; }
+  .sum-row:last-of-type { border-bottom: none; }
+  .sl2 { font-size: 10px; color: #555; }
+  .sv { font-size: 11px; color: #fff; font-weight: 600; text-align: right; max-width: 110px; }
+  .sv-r { font-size: 11px; color: #E24B4A; font-weight: 600; }
+  .notice { background: #1a1a1a; border-radius: 8px; padding: 9px 11px; margin: 10px 0; }
+  .notice-txt { font-size: 10px; color: #555; line-height: 1.6; }
+  .r-dot { width: 8px; height: 8px; border-radius: 50%; background: #E24B4A; margin-bottom: 16px; }
+  .divider { height: 0.5px; background: #222; margin: 14px 0; }
+  .detail-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; }
+  .dl { font-size: 11px; color: #555; }
+  .dv { font-size: 11px; color: #fff; font-weight: 600; }
+  .dv-r { font-size: 11px; color: #E24B4A; font-weight: 600; }
+  .kakao-box { background: #1a1a1a; border-radius: 10px; padding: 11px 13px; margin: 12px 0; border-left: 2.5px solid #333; }
+  .kk-label { font-size: 9px; color: #444; letter-spacing: 0.08em; margin-bottom: 5px; }
+  .kk-txt { font-size: 11px; color: #888; line-height: 1.6; }
+  .kk-name { color: #ccc; font-weight: 600; }
+  .btn-r { background: #E24B4A; color: #fff; border-radius: 10px; padding: 11px 0; font-size: 12px; font-weight: 700; text-align: center; margin-bottom: 7px; }
+  .btn-dark { background: #1a1a1a; color: #555; border-radius: 10px; padding: 11px 0; font-size: 12px; text-align: center; }
+  .wm { font-size: 20px; font-weight: 900; color: #fff; letter-spacing: -0.5px; }
+  .wm-en { font-size: 10px; color: #555; letter-spacing: 1px; }
+  .add-btn { width: 28px; height: 28px; border-radius: 50%; background: #1D9E75; display: flex; align-items: center; justify-content: center; }
+  .plus { width: 12px; height: 12px; position: relative; }
+  .plus::before, .plus::after { content: ''; position: absolute; background: #fff; border-radius: 1px; }
+  .plus::before { width: 2px; height: 12px; left: 5px; top: 0; }
+  .plus::after { width: 12px; height: 2px; left: 0; top: 5px; }
+  .fold-pill { display: flex; align-items: center; justify-content: space-between; background: #1f1515; border-radius: 10px; padding: 9px 13px; border-left: 3px solid #E24B4A; }
+  .fold-left { display: flex; align-items: center; gap: 7px; }
+  .fold-dot { width: 6px; height: 6px; border-radius: 50%; background: #E24B4A; }
+  .fold-txt { font-size: 11px; color: #E24B4A; font-weight: 500; }
+  .fold-sub { font-size: 10px; color: #663333; }
+  .fold-arr { font-size: 10px; color: #663333; }
+  .wm-toprow { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+  .conscience-box { background: #1a1a1a; border-radius: 10px; padding: 13px; border-left: 2.5px solid #444; margin-bottom: 8px; }
+  .conscience-q { font-weight: 900; font-size: 13px; color: #fff; line-height: 1.5; margin-bottom: 5px; }
+  .conscience-sub { font-size: 10px; color: #555; line-height: 1.6; }
+  .conscience-badge { display: inline-block; background: #222; color: #666; font-size: 9px; border-radius: 4px; padding: 2px 6px; margin-bottom: 8px; letter-spacing: 0.06em; }
+
+  /* ─── 결정사항 카드 ─── */
+  .decisions { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 1rem; }
+  .dec-card { background: #1a1a1a; border: 0.5px solid #2a2a2a; border-radius: 12px; padding: 16px; }
+  .dec-title { font-size: 12px; font-weight: 600; color: #fff; margin-bottom: 8px; }
+  .dec-item { font-size: 11px; color: #666; line-height: 1.8; padding-left: 12px; position: relative; }
+  .dec-item::before { content: '—'; position: absolute; left: 0; color: #333; }
+
+  /* ─── 카테고리 테이블 ─── */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { text-align: left; padding: 8px 12px; color: #555; font-weight: 500; border-bottom: 0.5px solid #222; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+  td { padding: 10px 12px; border-bottom: 0.5px solid #1a1a1a; color: #888; vertical-align: top; }
+  td:first-child { color: #fff; font-weight: 600; }
+  .tag-g { display: inline-block; background: #0F3D2E; color: #1D9E75; font-size: 10px; border-radius: 3px; padding: 1px 6px; }
+  .tag-b { display: inline-block; background: #1a1a2e; color: #5599ff; font-size: 10px; border-radius: 3px; padding: 1px 6px; }
+  .tag-y { display: inline-block; background: #2a2010; color: #ffaa44; font-size: 10px; border-radius: 3px; padding: 1px 6px; }
+
+  /* ─── 푸시 알림 ─── */
+  .notif { background: #1a1a1a; border-radius: 14px; padding: 12px 14px; width: 200px; }
+  .notif-top { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .notif-icon { width: 26px; height: 26px; border-radius: 7px; background: #111; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .notif-icon-dot { width: 8px; height: 8px; border-radius: 50%; background: #E24B4A; }
+  .notif-app { font-size: 10px; color: #555; }
+  .notif-time { font-size: 10px; color: #444; margin-left: auto; }
+  .notif-title { font-size: 12px; font-weight: 700; color: #fff; margin-bottom: 3px; }
+  .notif-body { font-size: 11px; color: #666; line-height: 1.5; }
+
+  hr.div { border: none; border-top: 0.5px solid #1a1a1a; margin: 3rem 0; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ─── 헤더 ─── -->
+  <div class="header">
+    <div class="brand">건다</div>
+    <div class="brand-en">GUNDA</div>
+    <div class="slogan">돈은 말보다 무겁기에.</div>
+    <div class="meta-row">
+      <span class="chip">Flutter 3.x</span>
+      <span class="chip">Android 우선</span>
+      <span class="chip">UsageStatsManager</span>
+      <span class="chip">Health Connect</span>
+      <span class="chip">카카오페이 딥링크</span>
+      <span class="chip">MVP</span>
+    </div>
+  </div>
+
+  <!-- ─── 서약 카테고리 ─── -->
+  <div class="section">
+    <div class="section-title">서약 카테고리 (6가지)</div>
+    <table>
+      <tr><th>카테고리</th><th>검증 방법</th><th>기술</th><th>비고</th></tr>
+      <tr><td>디지털 디톡스</td><td>앱별 사용 시간/시간대</td><td><span class="tag-b">UsageStats</span></td><td>앱 선택 + 시간대 or 하루 한도</td></tr>
+      <tr><td>게임</td><td>게임 앱 사용 시간</td><td><span class="tag-b">UsageStats</span> <span class="tag-b">PackageManager</span></td><td>설치된 게임 자동 감지, 토글 선택</td></tr>
+      <tr><td>배달음식</td><td>배달앱 실행 감지</td><td><span class="tag-b">UsageStats</span></td><td>배민/쿠팡이츠/요기요 패키지명 고정</td></tr>
+      <tr><td>걸음수</td><td>오늘 StepsRecord</td><td><span class="tag-g">Health Connect</span></td><td>하루 목표 걸음수 슬라이더</td></tr>
+      <tr><td>수면</td><td>SleepSessionRecord</td><td><span class="tag-g">Health Connect</span></td><td>취침 시각 + 최소 수면 시간</td></tr>
+      <tr><td>자유 입력</td><td>없음</td><td><span class="tag-y">양심 전용</span></td><td>매일 자정 전 수동 체크, 미체크 시 위반</td></tr>
+    </table>
+  </div>
+
+  <hr class="div">
+
+  <!-- ─── 온보딩 ─── -->
+  <div class="section">
+    <div class="section-title">온보딩 (3장)</div>
+    <div class="screens">
+
+      <div class="screen-wrap">
+        <div class="phone">
+          <div class="sb"><span class="sb-t">9:41</span><div class="sb-i"><div class="si"></div><div class="si"></div><div class="si"></div></div></div>
+          <div class="inner">
+            <div>
+              <div class="tag-sm">01 / 03</div>
+              <div class="q">지킨다고 했던 말,<br>몇 번이나<br>지켰나요?</div>
+              <div class="sub">스스로에게 솔직해질 때,<br>변화가 시작됩니다.</div>
+            </div>
+            <div>
+              <div class="btn-w">시작하기</div>
+              <div class="btn-ghost">계정 없이 둘러보기</div>
+              <div class="dots"><div class="dot on"></div><div class="dot"></div><div class="dot"></div></div>
+            </div>
+          </div>
+        </div>
+        <span class="screen-label">1장 — 질문</span>
+      </div>
+
+      <div class="screen-wrap">
+        <div class="phone">
+          <div class="sb"><span class="sb-t">9:41</span><div class="sb-i"><div class="si"></div><div class="si"></div><div class="si"></div></div></div>
+          <div class="inner">
+            <div>
+              <div class="tag-sm">02 / 03</div>
+              <div class="q">말은 사라지지만<br>돈은<br>남습니다.</div>
+              <div style="margin-top:14px;">
+                <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;"><div style="width:5px;height:5px;border-radius:50%;background:#1D9E75;margin-top:4px;flex-shrink:0;"></div><div class="sub">기기 데이터가 자동으로 확인합니다</div></div>
+                <div style="display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;"><div style="width:5px;height:5px;border-radius:50%;background:#1D9E75;margin-top:4px;flex-shrink:0;"></div><div class="sub">위반하면 지인에게 알림이 갑니다</div></div>
+                <div style="display:flex;align-items:flex-start;gap:8px;"><div style="width:5px;height:5px;border-radius:50%;background:#1D9E75;margin-top:4px;flex-shrink:0;"></div><div class="sub">카카오페이로 제재가 실행됩니다</div></div>
+              </div>
+            </div>
+            <div>
+              <div class="btn-w">다음</div>
+              <div class="dots"><div class="dot"></div><div class="dot on"></div><div class="dot"></div></div>
+            </div>
+          </div>
+        </div>
+        <span class="screen-label">2장 — 철학</span>
+      </div>
+
+      <div class="screen-wrap">
+        <div class="phone">
+          <div class="sb"><span class="sb-t">9:41</span><div class="sb-i"><div class="si"></div><div class="si"></div><div class="si"></div></div></div>
+          <div class="inner">
+            <div>
+              <div class="tag-sm">03 / 03</div>
+              <div class="q">이제,<br><span style="font-size:26px;letter-spacing:-1px;">건</span>겠습니까?</div>
+              <div class="sub" style="margin-top:10px;">돈은 말보다 무겁기에.</div>
+            </div>
+            <div>
+              <div class="btn-w">첫 번째 서약 만들기</div>
+              <div class="btn-ghost">나중에 하기</div>
+              <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot on"></div></div>
+            </div>
+          </div>
+        </div>
+        <span class="screen-label">3장 — CTA<br><span style="color:#555;font-size:9px;">'건' 폰트 크게, 색 변경 없음</span></span>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="div">
+
+  <!-- ─── 홈 ─── -->
+  <div class="section">
+    <div class="section-title">홈 화면</div>
+    <div class="screens">
+
+      <div class="screen-wrap">
+        <div class="phone">
+          <div class="sb"><span class="sb-t">9:41</span><div class="sb-i"><div class="si"></div><div class="si"></div><div class="si"></div></div></div>
+          <div class="inner">
+            <div>
+              <div class="wm-toprow">
+                <div><div class="wm">건다</div><div class="wm-en">GUNDA</div></div>
+                <div class="add-btn"><div class="plus"></div></div>
+              </div>
+              <div class="sec-lbl">활성 서약 2</div>
+              <div class="card">
+                <div class="card-top">
+                  <div><div class="card-name">유튜브 금지</div><div class="card-sub">22:00 이후 · 23일 중 18일</div></div>
+                  <span class="badge badge-ok">달성</span>
+                </div>
+                <div class="pr"><div class="pb"><div class="pf" style="width:78%;background:#1D9E75;"></div></div><span class="pp">78%</span></div>
+                <div class="meta">
+                  <span class="mi">제재금 <span class="mv">10,000원</span></span>
+                  <div class="streak-chip"><div class="sf"></div><span class="st">12일 연속</span></div>
+                </div>
+              </div>
+              <div class="fold-pill">
+                <div class="fold-left"><div class="fold-dot"></div><div><div class="fold-txt">위반 1건</div><div class="fold-sub">하루 8,000보</div></div></div>
+                <span class="fold-arr">∨</span>
+              </div>
+            </div>
+            <div class="bnav">
+              <div class="ni"><div class="nic on"></div><span class="nl on">홈</span></div>
+              <div class="ni"><div class="nic"></div><span class="nl">서약</span></div>
+              <div class="ni"><div class="nic"></div><span class="nl">기록</span></div>
+              <div class="ni"><div class="nic"></div><span class="nl">설정</span></div>
+            </div>
+          </div>
+        </div>
+        <span class="screen-label">홈 (위반 접힌 상태)<br><span style="color:#555;font-size:9px;">진입 시 fold 애니메이션</span></span>
+      </div>
+
+      <div class="screen-wrap">
+        <div class="phone">
+          <div class="sb"><span class="sb-t">9:41</span><div class="sb-i"><div class="si"></div><div class="si"></div><div class="si"></div></div></div>
+          <div class="inner">
+            <div>
+              <div class="wm-toprow">
+                <div><div class="wm">건다</div><div class="wm-en">GUNDA</div></div>
+                <div class="add-btn"><div class="plus"></div></div>
+              </div>
+              <div class="sec-lbl">활성 서약 2</div>
+              <div class="card">
+                <div class="card-top">
+                  <div><div class="card-name">유튜브 금지</div><div class="card-sub">22:00 이후 · 23일 중 18일</div></div>
+                  <span class="badge badge-ok">달성</span>
+                </div>
+                <div class="pr"><div class="pb"><div class="pf" style="width:78%;background:#1D9E75;"></div></div><span class="pp">78%</span></div>
+                <div class="meta">
+                  <span class="mi">제재금 <span class="mv">10,000원</span></span>
+                  <div class="streak-chip"><div class="sf"></div><span class="st">12일 연속</span></div>
+                </div>
+              </div>
+              <div class="card viol">
+                <div class="card-top">
+                  <div><div class="card-name">하루 8,000보</div><div class="card-sub">30일 중 14일 · 오늘 3,041보</div></div>
+                  <span class="badge badge-fail">위반</span>
+                </div>
+                <div class="pr"><div class="pb"><div class="pf" style="width:38%;background:#E24B4A;"></div></div><span class="pp" style="color:#E24B4A;">38%</span></div>
+                <div class="meta">
+                  <span class="mi">제재금 <span style="color:#E24B4A;font-weight:600;">5,000원 예정</span></span>
+                  <div class="streak-chip"><div class="sf" style="background:#444;"></div><span class="st" style="color:#555;">스트릭 끊김</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="bnav">
+              <div class="ni"><div class="nic on"></div><span class="nl on">홈</span></div>
+              <div class="ni"><div class="nic"></div><span class="nl">서약</span></div>
+              <div class="ni"><div class="nic"></div><span class="nl">기록</span></div>
+              <div class="ni"><div class="nic"></div><span class="nl">설정</span></div>
+            </div>
+          </div>
+        </div>
+        <span class="screen-label">홈 (위반 펼친 상태)<br><span style="color:#555;font-size:9px;">탭하면 펼쳐짐</span></span>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="div">
+
+  <!-- ─── 서약 만들기 ─── -->
+  <div class="section">
+    <div class="section-title">서약 만들기 (4단계)</div>
+    <div class="screens">
+
+      <div class="screen-wrap">
+        <div class="phone">
+          <div class="sb"><span class="sb-t">9:41</span><div class="sb-i"><div class="si"></div><div class="si"></div><div class="si"></div></div></div>
+          <div class="inner">
+            <div>
+              <div class="step-bar"><div class="seg on"></div><div class="seg"></div><div class="seg"></div><div class="seg"></div></div>
+              <div class="q">어떤 서약을<br>건겠습니까?</div>
+              <div class="opt"><div><div class="opt-txt">디지털 디톡스</div><div class="opt-sub2">앱 사용 시간 제한</div></div><span class="arr">›</span></div>
+              <div class="opt"><div><div class="opt-txt">게임</div><div class="opt-sub2">설치된 게임 자동 감지</div></div><span class="arr">›</span></div>
+              <div class="opt"><div><div class="opt-txt">배달음식</div><div class="opt-sub2">배달앱 실행 제한</div></div><span class="arr">›</span></div>
+              <div class="opt"><div><div class="opt-txt">걸음수</div><div class="opt-sub2">Health Connect 연동</div></div><span class="arr">›</span></div>
+              <div class="opt"><div><div class="opt-txt">수면</div><div class="opt-sub2">Health Connect 연동</div></div><span class="arr">›</span></div>
+              <div class="opt"><div><div class="opt-txt">자유 입력</div><div class="opt-sub2">양심 전용 모드</div></div><span class="arr">›</span></div>
+            </div>
+            <div class="btn-w" style="margin-top:8px;">다음</div>
+          </div>
+        </div>
+        <span class="screen-label">1단계 — 유형 선택</span>
+      </div>
+
+      <div class="screen-wrap">
+        <div class="phone">
+          <div class="sb"><span class="sb-t">9:41</span><div class="sb-i"><div class="si"></div><div class="si"></div><div class="si"></div></div></div>
+          <div class="inner">
+            <div>
+              <div class="step-bar"><div class="seg done"></div><div class="seg on"></div><div class="seg"></div><div class="seg"></div></div>
+              <div class="q">어떤 앱을<br>끊겠습니까?</div>
+              <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;">
+                <div style="background:#fff;color:#111;border-radius:6px;padding:5px 9px;font-size:10px;font-weight:600;">유튜브</div>
+                <div style="background:#1a1a1a;border-radius:6px;padding:5px 9px;font-size:10px;color:#666;">인스타그램</div>
+                <div style="background:#1a1a1a;border-radius:6px;padding:5px 9px;font-size:10px;color:#666;">틱톡</div>
+                <div style="background:#1a1a1a;border-radius:6px;padding:5px 9px;font-size:10px;color:#666;">+ 직접 입력</div>
+              </div>
+              <div class="input-box">
+                <div class="il">제한 시간대</div>
+                <div style="display:flex;align-items:baseline;gap:3px;"><span class="iv">22:00</span><span class="iu">이후</span></div>
+              </div>
+              <div class="input-box">
+                <div class="il">또는 하루 사용 한도</div>
+                <div style="display:flex;align-items:baseline;gap:3px;"><span class="iv">30</span><span class="iu">분</span></div>
+                <div class="sl-track"><div class="sl-fill" style="width:60%"></div><div class="sl-thumb" style="left:calc(60% - 6px)"></div></div>
+              </div>
+            </div>
+            <div class="btn-w">다음</div>
+          </div>
+        </div>
+        <span class="screen-label">2단계 — 세부 조건<br><span style="color:#555;font-size:9px;">디지털 디톡스 예시</span></span>
+      </div>
+
+      <div class="screen-wrap">
+        <div class="phone">
+          <div class="sb"><span class="sb-t">9:41</span><div class="sb-i"><div class="si"></div><div class="si"></div><div class="si"></div></div></div>
+          <div class="inner">
+            <div>
+              <div class="step-bar"><div class="seg done"></div><div class="seg on"></div><div class="seg"></div><div class="seg"></div></div>
+              <div class="q">무엇을<br>서약하겠습니까?</div>
+              <div class="conscience-badge">양심 전용 모드</div>
+              <div class="conscience-box">
+                <div class="conscience-q">이 서약은 자동 검증이<br>없습니다.</div>
+                <div class="conscience-sub">오직 양심에 걸겠습니까?<br>기기가 아닌 당신이 판단합니다.</div>
+              </div>
+              <div class="input-box" style="margin-top:8px;">
+                <div class="il">서약 내용</div>
+                <div style="font-size:12px;color:#fff;margin-top:4px;line-height:1.5;">매일 아침 독서 30분 이상 하기</div>
+              </div>
+              <div class="input-box">
+                <div class="il">달성 확인 방식</div>
+                <div style="font-size:11px;color:#888;margin-top:3px;line-height:1.5;">매일 자정 전 직접 체크<br><span style="color:#555;font-size:10px;">미체크 시 위반으로 처리</span></div>
+              </div>
+            </div>
+            <div class="btn-w">다음</div>
+          </div>
+        </div>
+        <span class="screen-label">2단계 — 자유 입력<br><span style="color:#555;font-size:9px;">양심 전용 모드 안내</span></span>
+      </div>
+
+      <div class="screen-wrap">
+        <div class="phone">
+          <div class="sb"><span class="sb-t">9:41</span><div class="sb-i"><div class="si"></div><div class="si"></div><div class="si"></div></div></div>
+          <div class="inner">
+            <div>
+              <div class="step-bar"><div class="seg done"></div><div class="seg done"></div><div class="seg on"></div><div class="seg"></div></div>
+              <div class="q">얼마를<br>걸겠습니까?</div>
+              <div class="input-box" style="margin-bottom:8px;">
+                <div class="il">서약 기간</div>
+                <div style="display:flex;align-items:baseline;gap:3px;"><span class="iv">30</span><span class="iu">일</span></div>
+                <div class="sl-track"><div class="sl-fill" style="width:50%"></div><div class="sl-thumb" style="left:calc(50% - 6px)"></div></div>
+              </div>
+              <div class="input-box">
+                <div class="il">위반 1회당 제재금</div>
+                <div style="display:flex;align-items:baseline;gap:3px;"><span class="iv" style="color:#E24B4A;">10,000</span><span class="iu">원</span></div>
+                <div class="sl-track"><div class="sl-fill" style="width:40%;background:#E24B4A;"></div><div class="sl-thumb" style="left:calc(40% - 6px);background:#E24B4A;"></div></div>
+              </div>
+              <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;">
+                <div style="background:#1a1a1a;border-radius:6px;padding:5px 9px;font-size:10px;color:#666;">1,000원</div>
+                <div style="background:#1a1a1a;border-radius:6px;padding:5px 9px;font-size:10px;color:#666;">5,000원</div>
+                <div style="background:#fff;color:#111;border-radius:6px;padding:5px 9px;font-size:10px;font-weight:600;">10,000원</div>
+                <div style="background:#1a1a1a;border-radius:6px;padding:5px 9px;font-size:10px;color:#666;">직접 입력</div>
+              </div>
+            </div>
+            <div class="btn-w">다음</div>
+          </div>
+        </div>
+        <span class="screen-label">3단계 — 기간·제재금</span>
+      </div>
+
+      <div class="screen-wrap">
+        <div class="phone">
+          <div class="sb"><span class="sb-t">9:41</span><div class="sb-i"><div class="si"></div><div class="si"></div><div class="si"></div></div></div>
+          <div class="inner">
+            <div>
+              <div class="step-bar"><div class="seg done"></div><div class="seg done"></div><div class="seg done"></div><div class="seg on"></div></div>
+              <div class="q">이대로<br>건겠습니까?</div>
+              <div class="sum-row"><span class="sl2">서약</span><span class="sv">유튜브 22:00 이후 금지</span></div>
+              <div class="sum-row"><span class="sl2">기간</span><span class="sv">30일</span></div>
+              <div class="sum-row"><span class="sl2">제재금</span><span class="sv-r">위반 1회 10,000원</span></div>
+              <div class="sum-row"><span class="sl2">수취인</span><span class="sv">김민준</span></div>
+              <div class="notice"><div class="notice-txt">서약을 시작하면 취소할 수 없습니다. 신중하게 결정해주세요.</div></div>
+            </div>
+            <div class="btn-w">서약을 겁니다</div>
+          </div>
+        </div>
+        <span class="screen-label">4단계 — 최종 확인<br><span style="color:#555;font-size:9px;">버튼: "서약을 겁니다"</span></span>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="div">
+
+  <!-- ─── 위반 알림 ─── -->
+  <div class="section">
+    <div class="section-title">위반 알림</div>
+    <div class="screens">
+
+      <div class="screen-wrap">
+        <div class="notif">
+          <div class="notif-top">
+            <div class="notif-icon"><div class="notif-icon-dot"></div></div>
+            <span class="notif-app">건다</span>
+            <span class="notif-time">지금</span>
+          </div>
+          <div class="notif-title">서약 위반이 감지됐습니다</div>
+          <div class="notif-body">하루 8,000보 · 오늘 3,041보<br>앱을 열어 확인하세요.</div>
+        </div>
+        <span class="screen-label">푸시 알림<br><span style="color:#555;font-size:9px;">담담하게, 사실만</span></span>
+      </div>
+
+      <div class="screen-wrap">
+        <div class="phone">
+          <div class="sb"><span class="sb-t">9:41</span><div class="sb-i"><div class="si"></div><div class="si"></div><div class="si"></div></div></div>
+          <div class="inner">
+            <div>
+              <div class="r-dot"></div>
+              <div class="q">오늘은<br>걷지 못했습니다.</div>
+              <div class="sub">하루 8,000보 서약 · 오늘 3,041보</div>
+              <div class="divider"></div>
+              <div class="detail-row"><span class="dl">서약</span><span class="dv">하루 8,000보</span></div>
+              <div class="detail-row"><span class="dl">제재금</span><span class="dv-r">5,000원</span></div>
+              <div class="detail-row"><span class="dl">수취인</span><span class="dv">사랑의열매</span></div>
+              <div class="kakao-box">
+                <div class="kk-label">카카오톡 발송 예정</div>
+                <div class="kk-txt"><span class="kk-name">사랑의열매</span>님께<br>"건다 서약 위반으로<br>5,000원을 보낼 예정입니다."</div>
+              </div>
+            </div>
+            <div>
+              <div class="btn-r">카카오페이로 보내기</div>
+              <div class="btn-dark">나중에 보내기</div>
+            </div>
+          </div>
+        </div>
+        <span class="screen-label">위반 확인 화면<br><span style="color:#555;font-size:9px;">선언 → 사실 나열 → CTA</span></span>
+      </div>
+
+    </div>
+  </div>
+
+  <hr class="div">
+
+  <!-- ─── 주요 결정사항 ─── -->
+  <div class="section">
+    <div class="section-title">주요 설계 결정사항</div>
+    <div class="decisions">
+      <div class="dec-card">
+        <div class="dec-title">홈 화면 원칙</div>
+        <div class="dec-item">서약별 개별 스트릭 (앱 전체 통합 스트릭 없음)</div>
+        <div class="dec-item">진행률: "23일 중 18일" 형식 (경과일 기준, 미래 기준 아님)</div>
+        <div class="dec-item">위반 카드는 진입 시 fold 애니메이션으로 자동 접힘</div>
+        <div class="dec-item">접힌 상태에서도 위반 건수·서약명은 노출</div>
+      </div>
+      <div class="dec-card">
+        <div class="dec-title">카카오페이 제재 구조</div>
+        <div class="dec-item">송금 완료 여부 수신 불가 — 민망함 + 양심에 기댐</div>
+        <div class="dec-item">위반 감지 시 수취인에게 카카오톡 알림 먼저 발송</div>
+        <div class="dec-item">"나중에 보내기" 남겨둠 — 찝찝함 유도</div>
+        <div class="dec-item">에스크로는 v2 과제 (결제 라이선스 이슈)</div>
+      </div>
+      <div class="dec-card">
+        <div class="dec-title">자유 입력 — 양심 전용 모드</div>
+        <div class="dec-item">자동 검증 없음을 생성 시점에 명시</div>
+        <div class="dec-item">"기기가 아닌 당신이 판단합니다" 안내 필수</div>
+        <div class="dec-item">매일 자정 전 수동 체크, 미체크 시 자동 위반 처리</div>
+        <div class="dec-item">자유 입력 데이터 = 다음 공식 카테고리 기획 리서치</div>
+      </div>
+      <div class="dec-card">
+        <div class="dec-title">브랜드 언어</div>
+        <div class="dec-item">모든 주요 화면 카피는 질문형</div>
+        <div class="dec-item">온보딩 1장·3장 수미상관 구조</div>
+        <div class="dec-item">3장 "건겠습니까?" — '건' 폰트 크게, 색 변경 없음</div>
+        <div class="dec-item">최종 CTA 버튼: "서약을 겁니다"</div>
+      </div>
+      <div class="dec-card">
+        <div class="dec-title">컬러 원칙</div>
+        <div class="dec-item">기본 UI: 흑백 무채색만 사용</div>
+        <div class="dec-item">달성 상태: #1D9E75 (초록)</div>
+        <div class="dec-item">위반 상태: #E24B4A (빨강)</div>
+        <div class="dec-item">컬러는 달성/위반 상태에만 의미 있게 사용</div>
+      </div>
+      <div class="dec-card">
+        <div class="dec-title">기술 제약사항</div>
+        <div class="dec-item">UsageStats: 설정에서 사용자 직접 허용 필요 — 온보딩 안내 필수</div>
+        <div class="dec-item">Health Connect: Android 14 미만 별도 앱 설치 필요</div>
+        <div class="dec-item">게임 감지: CATEGORY_GAME 필터 + 수동 추가 병행</div>
+        <div class="dec-item">백그라운드 검증: WorkManager 자정 실행</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
