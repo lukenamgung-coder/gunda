@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>건다 — 돈은 말보다 무겁기에</title>
+  <meta name="description" content="스스로 설정한 행동 서약을 기기 데이터로 자동 검증하고, 위반 시 실제 돈을 집행자에게 송금하는 자기 규율 앱" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #111111;
+      --card: #1a1a1a;
+      --border: #2a2a2a;
+      --white: #ffffff;
+      --grey1: #e0e0e0;
+      --grey2: #aaaaaa;
+      --grey3: #777777;
+      --green: #1d9e75;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--white);
+      font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 48px 24px 0;
+      max-width: 640px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .logo {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      color: var(--white);
+    }
+
+    main {
+      flex: 1;
+      max-width: 640px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 64px 24px 80px;
+    }
+
+    .hero-eyebrow {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--green);
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: clamp(36px, 8vw, 56px);
+      font-weight: 900;
+      line-height: 1.15;
+      letter-spacing: -1px;
+      color: var(--white);
+      margin-bottom: 24px;
+    }
+
+    .tagline {
+      font-size: 18px;
+      color: var(--grey2);
+      line-height: 1.6;
+      margin-bottom: 48px;
+      max-width: 480px;
+    }
+
+    .how-it-works {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin-bottom: 64px;
+    }
+
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 20px;
+      background: var(--card);
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--green);
+      color: var(--white);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .step-text strong {
+      display: block;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--white);
+      margin-bottom: 4px;
+    }
+
+    .step-text span {
+      font-size: 13px;
+      color: var(--grey2);
+      line-height: 1.5;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      color: var(--grey2);
+    }
+
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    footer {
+      padding: 32px 24px;
+      text-align: center;
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      color: var(--grey3);
+    }
+
+    footer a {
+      color: var(--grey3);
+      text-decoration: none;
+    }
+
+    footer a:hover {
+      color: var(--grey2);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="logo">건다</div>
+  </header>
+
+  <main>
+    <p class="hero-eyebrow">Self-discipline app</p>
+    <h1>돈은 말보다<br>무겁기에</h1>
+    <p class="tagline">
+      스스로 설정한 행동 서약을 기기 데이터로 자동 검증하고,<br>
+      위반 시 실제 돈을 집행자에게 송금하는 자기 규율 앱
+    </p>
+
+    <div class="how-it-works">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <strong>서약을 겁니다</strong>
+          <span>지키고 싶은 행동과 집행자, 위반 시 벌금을 설정합니다.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          <strong>기기가 검증합니다</strong>
+          <span>스마트폰 사용 데이터와 Health Connect로 매일 자동 확인합니다.</span>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          <strong>위반하면 돈이 나갑니다</strong>
+          <span>변명 없이, 즉시, 실제로.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="badge">
+      <span class="badge-dot"></span>
+      Android — 출시 준비 중
+    </div>
+  </main>
+
+  <footer>
+    <p>
+      &copy; 2026 건다 &nbsp;·&nbsp;
+      <a href="mailto:lukenamgung@gmail.com">문의</a> &nbsp;·&nbsp;
+      <a href="/privacy">개인정보처리방침</a>
+    </p>
+  </footer>
+
+</body>
+</html>
