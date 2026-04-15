@@ -269,7 +269,7 @@ class _CreateVowScreenState
       case PledgeType.delivery:
         return _deliveryFullBan
             ? '나는 배달앱을\n완전히 금지한다.'
-            : '나는 배달앱 주문을\n하루 $_deliveryMaxCount회로 제한한다.';
+            : '나는 배달앱 주문을 하루 $_deliveryMaxCount회로 제한한다.';
       case PledgeType.game:
         return _condition.targetValue == 0
             ? '나는 게임을\n완전히 차단한다.'
@@ -525,24 +525,12 @@ class _CreateVowScreenState
 // ─────────────────────────────────────────────────────────
 
 const _categories = [
+  // ── 구현 완료 ──────────────────────────────────────
   (
     PledgeType.screenTime,
     '디지털 디톡스',
     Icons.phone_android_outlined,
     '앱 사용 시간 제한'
-  ),
-  (PledgeType.sleep, '수면', Icons.bedtime_outlined, '취침·수면 시간'),
-  (
-    PledgeType.steps,
-    '걸음수',
-    Icons.directions_walk_outlined,
-    '하루 목표 걸음수'
-  ),
-  (
-    PledgeType.exercise,
-    '운동',
-    Icons.fitness_center_outlined,
-    '운동 시간 달성'
   ),
   (
     PledgeType.delivery,
@@ -555,6 +543,20 @@ const _categories = [
     '게임',
     Icons.sports_esports_outlined,
     '게임 시간 제한'
+  ),
+  // ── 준비 중 ────────────────────────────────────────
+  (PledgeType.sleep, '수면', Icons.bedtime_outlined, '취침·수면 시간'),
+  (
+    PledgeType.steps,
+    '걸음수',
+    Icons.directions_walk_outlined,
+    '하루 목표 걸음수'
+  ),
+  (
+    PledgeType.exercise,
+    '운동',
+    Icons.fitness_center_outlined,
+    '운동 시간 달성'
   ),
 ];
 
@@ -1255,20 +1257,28 @@ class _StepRecipientState extends State<_StepRecipient> {
         TextField(
           controller: widget.recipientCtrl,
           style: const TextStyle(
-              color: Colors.black,
+              color: GundaColors.white,
               fontSize: 15,
               fontWeight: FontWeight.w500),
           textInputAction: TextInputAction.next,
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white,
+            fillColor: GundaColors.card,
             hintText: '이름',
-            hintStyle: TextStyle(color: Colors.grey.shade400),
+            hintStyle: const TextStyle(color: GundaColors.grey3),
             contentPadding: const EdgeInsets.symmetric(
                 horizontal: 14, vertical: 13),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
+              borderSide: const BorderSide(color: GundaColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: GundaColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: GundaColors.grey3),
             ),
           ),
         ),
@@ -1278,23 +1288,31 @@ class _StepRecipientState extends State<_StepRecipient> {
         TextField(
           controller: widget.phoneCtrl,
           style: const TextStyle(
-              color: Colors.black,
+              color: GundaColors.white,
               fontSize: 15,
               fontWeight: FontWeight.w500),
           keyboardType: TextInputType.phone,
           textInputAction: TextInputAction.done,
           decoration: InputDecoration(
             filled: true,
-            fillColor: Colors.white,
+            fillColor: GundaColors.card,
             hintText: '전화번호',
-            hintStyle: TextStyle(color: Colors.grey.shade400),
+            hintStyle: const TextStyle(color: GundaColors.grey3),
             contentPadding: const EdgeInsets.symmetric(
                 horizontal: 14, vertical: 13),
             prefixIcon: const Icon(Icons.phone_outlined,
-                size: 18, color: Colors.grey),
+                size: 18, color: GundaColors.grey3),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
+              borderSide: const BorderSide(color: GundaColors.border),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: GundaColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: GundaColors.grey3),
             ),
           ),
         ),
@@ -2035,16 +2053,53 @@ class _ScreenTimeConditionWidgetState
         ),
         if (widget.hasWindowLimit) ...[
           const SizedBox(height: 14),
-          _HourPicker(
-            label: '금지 시작',
-            hour: widget.windowStartHour,
-            onChanged: widget.onWindowStartChanged,
-          ),
-          const SizedBox(height: 10),
-          _HourPicker(
-            label: '금지 종료',
-            hour: widget.windowEndHour,
-            onChanged: widget.onWindowEndChanged,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: GundaColors.card,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: GundaColors.border),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('시작',
+                          style: TextStyle(
+                              fontSize: 11, color: GundaColors.grey3)),
+                      const SizedBox(height: 6),
+                      _HourControls(
+                        hour: widget.windowStartHour,
+                        onChanged: widget.onWindowStartChanged,
+                      ),
+                    ],
+                  ),
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(top: 14),
+                  child: Icon(Icons.arrow_forward,
+                      size: 14, color: GundaColors.grey4),
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text('종료',
+                          style: TextStyle(
+                              fontSize: 11, color: GundaColors.grey3)),
+                      const SizedBox(height: 6),
+                      _HourControls(
+                        hour: widget.windowEndHour,
+                        onChanged: widget.onWindowEndChanged,
+                        alignEnd: true,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -2196,55 +2251,45 @@ class _OptionChipGroup extends StatelessWidget {
   }
 }
 
-// 시간(0–23) 증감 피커
-class _HourPicker extends StatelessWidget {
-  final String label;
+// 시간(0–23) 증감 컨트롤 (라벨 없음, 인라인 범위용)
+class _HourControls extends StatelessWidget {
   final int hour;
   final ValueChanged<int> onChanged;
-  const _HourPicker(
-      {required this.label,
-      required this.hour,
-      required this.onChanged});
+  final bool alignEnd;
+  const _HourControls(
+      {required this.hour,
+      required this.onChanged,
+      this.alignEnd = false});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final row = Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          width: 68,
-          child: Text(label,
-              style: const TextStyle(
-                  fontSize: 13, color: GundaColors.grey1)),
+        GestureDetector(
+          onTap: () => onChanged((hour - 1 + 24) % 24),
+          child: const Icon(Icons.remove_circle_outline,
+              size: 20, color: GundaColors.grey2),
         ),
-        IconButton(
-          onPressed: () => onChanged((hour - 1 + 24) % 24),
-          icon: const Icon(Icons.remove_circle_outline,
-              color: GundaColors.grey2),
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
+        const SizedBox(width: 10),
+        Text(
+          '${hour.toString().padLeft(2, '0')}시',
+          style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: GundaColors.white),
         ),
-        const SizedBox(width: 12),
-        SizedBox(
-          width: 36,
-          child: Text(
-            '${hour.toString().padLeft(2, '0')}시',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: GundaColors.white),
-          ),
-        ),
-        const SizedBox(width: 12),
-        IconButton(
-          onPressed: () => onChanged((hour + 1) % 24),
-          icon: const Icon(Icons.add_circle_outline,
-              color: GundaColors.grey2),
-          padding: EdgeInsets.zero,
-          constraints: const BoxConstraints(),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: () => onChanged((hour + 1) % 24),
+          child: const Icon(Icons.add_circle_outline,
+              size: 20, color: GundaColors.grey2),
         ),
       ],
     );
+    return alignEnd
+        ? Align(alignment: Alignment.centerRight, child: row)
+        : row;
   }
 }
 

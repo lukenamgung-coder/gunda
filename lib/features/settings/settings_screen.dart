@@ -1,6 +1,8 @@
 import 'package:drift/drift.dart' show Value;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/database/app_database.dart';
@@ -220,6 +222,31 @@ class _SettingsScreenState
                 await _loadPermissions();
               },
             ),
+
+            // ── 개발자 도구 (debug only) ───────────────────
+            if (kDebugMode) ...[
+              const _SectionHeader('개발자 도구'),
+              ListTile(
+                leading: const Icon(Icons.bug_report_outlined,
+                    color: GundaColors.red),
+                title: const Text('위반 시나리오 시딩',
+                    style: TextStyle(color: GundaColors.red)),
+                subtitle: const Text(
+                    '테스트용 위반 서약을 생성하고 상세 화면으로 이동합니다'),
+                trailing: const Icon(Icons.arrow_forward_ios,
+                    size: 14),
+                onTap: () async {
+                  final db = ref.read(appDatabaseProvider);
+                  final vowId = await db.seedTestViolation();
+                  if (context.mounted) {
+                    context.pushNamed('vow-detail',
+                        pathParameters: {
+                          'id': vowId.toString()
+                        });
+                  }
+                },
+              ),
+            ],
 
             // ── 앱 정보 ────────────────────────────────────
             const _SectionHeader('앱 정보'),

@@ -518,7 +518,7 @@ class _NicknameStepState
           ),
           const SizedBox(height: 6),
           const Text(
-            '실패도 이 이름으로 쌓입니다.',
+            '성공도, 실패도 이 이름으로 쌓입니다.',
             style: TextStyle(
               fontSize: 15,
               color: GundaColors.grey3,

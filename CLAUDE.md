@@ -26,10 +26,12 @@
 
 ## 화면 구조 (5개)
 
-### 1. 온보딩 (3장)
-- 1장: "지킨다고 했던 말, 몇 번이나 지켰나요?"
-- 2장: "말은 사라지지만 돈은 남습니다." + 작동 원리 3줄
-- 3장: "이제, 건겠습니까?" — '건' 글자만 폰트 사이즈 크게 강조, 색 변경 없음
+### 1. 온보딩 (4장)
+- 1장: 훅 카피 + "시작하기" / "일단 둘러보기" 버튼
+- 2장: "돈은 말보다 무겁습니다." + 작동 원리 3줄
+- 3장: 닉네임 선택 (칩 12개 + 직접 입력)
+- 4장: 프리셋 서약 선택 3개 + "직접 걸어 봅니다"
+- 완료 시 `SharedPreferences['onboarding_done'] = true`
 
 ### 2. 홈
 - 활성 서약 카드 목록
@@ -39,17 +41,17 @@
 - 접힌 상태에서도 "위반 N건 / 서약명"은 보임
 - 상단 우측 + 버튼으로 서약 만들기 진입
 
-### 3. 서약 만들기 (4단계)
-- 1단계: 카테고리 선택 (7가지)
-- 2단계: 세부 조건 (카테고리별 분기)
-  - 디지털 디톡스: 앱 선택 + 시간대 또는 하루 한도
-  - 게임: PackageManager로 불러온 게임 목록 토글 선택 + 한도
+### 3. 서약 만들기 (5단계, 내부 step 0~4)
+- step 0: 카테고리 선택 — 구현 완료 타입 상단(디지털/배달/게임), 준비 중 타입 하단(수면/걸음수/운동), 자유입력 전폭 하단
+- step 1: 세부 조건 (카테고리별 분기)
+  - 디지털 디톡스: 프리셋 앱 2×2 그리드 + 다른 앱 선택 + 하루 한도 칩 + 시간대 금지 (인라인 범위 피커)
+  - 게임: PackageManager로 불러온 게임 목록 + 한도
   - 배달음식: 배민/쿠팡이츠/요기요 고정, 완전 금지 또는 횟수 제한
-  - 걸음수: 하루 목표 걸음수 슬라이더
-  - 수면: 취침 시각 + 최소 수면 시간
-  - 자유 입력: 텍스트 입력 + 양심 전용 모드 안내
-- 3단계: 기간(슬라이더) + 위반 1회당 제재금(슬라이더 + 프리셋)
-- 4단계: 수취인 선택(지인/기부처) + 전체 요약 + 최종 확인
+  - 걸음수/수면/운동: `_SimpleConditionChips`로 옵션 선택
+  - 자유 입력: 제목 입력 + 양심 안내
+- step 2: 기간 프리셋(3/7/14/30/60/90일) + 위반 1회당 제재금 프리셋
+- step 3: 수취인 선택 (지인 연락처 — 기부처는 출시 예정)
+- step 4: 행동서약서 전체 요약 + 동의 체크박스 + 길게 눌러 서약 체결 버튼
 - 마지막 버튼 텍스트: "서약을 겁니다"
 - 서약 시작 후 취소 불가 안내 필수
 
@@ -194,10 +196,31 @@ lib/
 - 위반 감지 시 카카오톡으로 수취인에게 먼저 알림 발송
 - 알림 내용: "OO님이 서약을 어겨 N원을 보낼 예정입니다."
 
+#### 카카오 SDK 현황
+- **main.dart**: `KakaoSdk.init()` 호출 시 `'YOUR_KAKAO_NATIVE_APP_KEY'` 플레이스홀더 → 반드시 교체
+- **AndroidManifest.xml**: `KAKAO_NATIVE_APP_KEY` 플레이스홀더 → 반드시 교체
+- 딥링크 콜백 핸들러(`gunda://kakaopay?violationId=X`) 구현 완료
+- 실제 결제 요청 UI (WebView/SDK 호출) 미구현
+
 ### 백그라운드 검증
-- WorkManager로 자정 실행
+- AlarmManager.setExact() + ForegroundService (WorkManager 아님) 로 자정 실행
+- `PledgeMonitorService.kt` — 원시 SQLite 직접 접근 (Drift는 background isolate 불가)
+- `VerificationAlarmReceiver.kt` — BroadcastReceiver, 서비스 시작
+- `BootReceiver.kt` — 재부팅 후 알람 재등록
 - 카테고리별 검증 로직 분기
-- 자유 입력: 자정까지 미체크 시 자동 위반 처리
+
+#### 검증 구현 현황
+| 타입 | 상태 | 비고 |
+|------|------|------|
+| screenTime | ✅ 구현 완료 | 하루 한도 검증 |
+| game | ✅ 구현 완료 | 하루 한도 검증 |
+| delivery | ✅ 구현 완료 | 배민/쿠팡이츠/요기요 3개 고정 |
+| steps | ❌ 미구현 | else→true (자동 통과), Health Connect 미연결 |
+| sleep | ❌ 미구현 | else→true (자동 통과), Health Connect 미연결 |
+| exercise | ❌ 미구현 | else→true (자동 통과), Health Connect 미연결 |
+| custom | ⚠️ 자동 위반 | 항상 false 반환, 수동 체크 UI 미구현 |
+
+**알려진 버그**: `checkWindowOnly()` 함수는 항상 `true`를 반환 (레트로액티브 UsageEvents 조회 불가 문제). 시간대 제한 조건은 현재 집행되지 않음.
 
 ### 리스크 평가
 - `EvaluateRisk(RiskEvaluator)` use case
@@ -241,4 +264,11 @@ lib/
 ## 개발 스프린트
 - Sprint 1 (완료): 프로젝트 셋업, MethodChannel, Health Connect, DB 스키마, Clean Architecture 레이어 분리
 - Sprint 2 (완료): 서약 상세 화면 (고긴장 대시보드), 위반 타임라인, 리스크 평가, BehavioralInsight, 서약 만들기 4단계
-- Sprint 3 (진행 중): 백그라운드 검증 엔진, 위반 감지 로직, 푸시 알림, 카카오페이 딥링크, 온보딩 UI, Play Store 내부 테스트
+- Sprint 3 (완료): 백그라운드 검증 엔진(screenTime/game/delivery), 위반 감지 로직, 푸시 알림, 카카오페이 딥링크 콜백, 온보딩 UI
+- Sprint 4 (진행 중): UX QA, Play Store 내부 테스트 배포 준비
+
+## 디버그 도구
+- 설정 화면 하단 **"개발자 도구"** 섹션 (`kDebugMode`에서만 표시)
+- **위반 시나리오 시딩**: 테스트용 위반 서약 생성 후 상세 화면으로 직접 이동
+  - `AppDatabase.seedTestViolation()` — 서약 + 검증 이력 + 위반 2건(완료/대기) 삽입
+  - conditionJson 필수 필드: `type`, `targetValue`, `unit`, `operator` 모두 포함 필수

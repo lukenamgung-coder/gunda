@@ -182,6 +182,75 @@ class AppDatabase extends _$AppDatabase {
       paidAt: Value(paidAt),
     ));
   }
+
+  // ── 개발용: 위반 시나리오 시딩 ──────────────────────────────
+  /// 테스트용 위반 서약을 생성하고 vowId를 반환합니다.
+  /// kDebugMode에서만 호출하십시오.
+  Future<int> seedTestViolation() async {
+    final user = await getFirstUser();
+    final userId = user?.id ?? 1;
+    final now = DateTime.now();
+
+    // 서약 생성 (10일 전 시작, 오늘 기준 violated 상태)
+    final vowId = await into(vows).insert(VowsCompanion(
+      userId: Value(userId),
+      title: const Value('유튜브 하루 1시간'),
+      pledgeType: const Value('screenTime'),
+      status: const Value('violated'),
+      conditionJson: const Value(
+          '{"type":"screenTime","targetValue":60.0,"unit":"분","operator":"lte","targetApps":["com.google.android.youtube"],"hasDurationLimit":true}'),
+      penaltyAmount: const Value(10000),
+      penaltyRecipient: const Value('김철수|01012345678|친구'),
+      startDate: Value(now.subtract(const Duration(days: 10))),
+      endDate: Value(now.add(const Duration(days: 20))),
+      totalVerifications: const Value(10),
+      passedVerifications: const Value(7),
+      createdAt: Value(now.subtract(const Duration(days: 10))),
+      updatedAt: Value(now),
+    ));
+
+    // 검증 기록 3건 (실패 포함)
+    final ver1Id = await into(verifications).insert(VerificationsCompanion(
+      vowId: Value(vowId),
+      targetDate: Value(now.subtract(const Duration(days: 3))),
+      verifiedAt: Value(now.subtract(const Duration(days: 3))),
+      isPassed: const Value(false),
+      measuredDataJson: const Value('{"duration_min":95}'),
+    ));
+    final ver2Id = await into(verifications).insert(VerificationsCompanion(
+      vowId: Value(vowId),
+      targetDate: Value(now.subtract(const Duration(days: 1))),
+      verifiedAt: Value(now.subtract(const Duration(days: 1))),
+      isPassed: const Value(false),
+      measuredDataJson: const Value('{"duration_min":130}'),
+    ));
+    await into(verifications).insert(VerificationsCompanion(
+      vowId: Value(vowId),
+      targetDate: Value(now),
+      verifiedAt: Value(now),
+      isPassed: const Value(true),
+      measuredDataJson: const Value('{"duration_min":42}'),
+    ));
+
+    // 위반 2건 — 1건 납부 완료, 1건 납부 대기
+    await into(violations).insert(ViolationsCompanion(
+      vowId: Value(vowId),
+      verificationId: Value(ver1Id),
+      violatedAt: Value(now.subtract(const Duration(days: 3))),
+      penaltyAmount: const Value(10000),
+      paymentStatus: const Value('completed'),
+      paidAt: Value(now.subtract(const Duration(days: 2))),
+    ));
+    await into(violations).insert(ViolationsCompanion(
+      vowId: Value(vowId),
+      verificationId: Value(ver2Id),
+      violatedAt: Value(now.subtract(const Duration(days: 1))),
+      penaltyAmount: const Value(10000),
+      paymentStatus: const Value('pending'),
+    ));
+
+    return vowId;
+  }
 }
 
 // ── DB 연결 ──────────────────────────────────────────────────
