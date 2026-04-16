@@ -18,8 +18,8 @@ class MainActivity : FlutterActivity() {
             "com.gunda.app/schedule",
         ).setMethodCallHandler { call, result ->
             when (call.method) {
-                "scheduleNightly" -> {
-                    PledgeMonitorService.scheduleNextMidnight(this)
+                "scheduleAllVows" -> {
+                    PledgeMonitorService.scheduleAllActiveVowAlarms(this)
                     result.success(null)
                 }
                 else -> result.notImplemented()

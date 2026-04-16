@@ -27,8 +27,8 @@ void main() async {
   // 알림 채널 초기화
   await NotificationService.instance.init();
 
-  // 자정 검증 알람 등록
-  await VerificationScheduleService.scheduleNightly();
+  // 서약별 검증 알람 등록 (활성 서약마다 개별 알람)
+  await VerificationScheduleService.scheduleAllVows();
 
   // Kakao SDK 초기화
   // TODO: Kakao Developers에서 발급받은 앱 키로 교체하세요

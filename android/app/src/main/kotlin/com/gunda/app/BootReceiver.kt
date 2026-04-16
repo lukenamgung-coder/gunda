@@ -5,13 +5,13 @@ import android.content.Context
 import android.content.Intent
 
 /**
- * Re-schedules the nightly verification alarm after device reboot.
- * The AlarmManager queue is cleared on reboot, so we must reschedule here.
+ * Re-schedules per-vow verification alarms after device reboot.
+ * The AlarmManager queue is cleared on reboot, so we must re-register here.
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            PledgeMonitorService.scheduleNextMidnight(context)
+            PledgeMonitorService.scheduleAllActiveVowAlarms(context)
         }
     }
 }

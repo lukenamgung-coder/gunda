@@ -31,6 +31,10 @@
 - 2장: "돈은 말보다 무겁습니다." + 작동 원리 3줄
 - 3장: 닉네임 선택 (칩 12개 + 직접 입력)
 - 4장: 프리셋 서약 선택 3개 + "직접 걸어 봅니다"
+  - 프리셋 1: "3일간 유튜브 11시 이후 금지" — screenTime, window 23~07, ₩5,000
+  - 프리셋 2: "3일간 9시~18시 게임 금지" — game, window 09~18, ₩5,000
+  - 프리셋 3: "1주일간 배달앱 2회 이하" — delivery, maxCount=2, ₩5,000
+  - 선택 시 `VowFormPreset` 객체를 GoRouter `extra`로 전달 → `CreateVowScreen`에서 step 2부터 시작
 - 완료 시 `SharedPreferences['onboarding_done'] = true`
 
 ### 2. 홈
@@ -45,7 +49,7 @@
 - step 0: 카테고리 선택 — 구현 완료 타입 상단(디지털/배달/게임), 준비 중 타입 하단(수면/걸음수/운동), 자유입력 전폭 하단
 - step 1: 세부 조건 (카테고리별 분기)
   - 디지털 디톡스: 프리셋 앱 2×2 그리드 + 다른 앱 선택 + 하루 한도 칩 + 시간대 금지 (인라인 범위 피커)
-  - 게임: PackageManager로 불러온 게임 목록 + 한도
+  - 게임: PackageManager로 불러온 게임 목록 + 한도 (시간대 금지 포함)
   - 배달음식: 배민/쿠팡이츠/요기요 고정, 완전 금지 또는 횟수 제한
   - 걸음수/수면/운동: `_SimpleConditionChips`로 옵션 선택
   - 자유 입력: 제목 입력 + 양심 안내
@@ -165,7 +169,8 @@ lib/
 | `DomainViolation` | 위반 이벤트. `isPending`, `isPaid` |
 | `BehavioralInsight` | 스트릭 + 트렌드. `streakLabel`, `lastViolationLabel` |
 | `RiskSnapshot` | 리스크 스냅샷. `RiskLevel` (safe/warning/danger), `hasLiveData` |
-| `PledgeCondition` | 서약 조건 JSON 모델. `type`, `targetValue`, `targetApps`, `windowStartHour/EndHour` |
+| `PledgeCondition` | 서약 조건 JSON 모델. `type`, `targetValue`, `targetApps`, `windowStartHour/EndHour`, `hasDurationLimit` |
+| `VowFormPreset` | 온보딩 프리셋 → 서약 만들기 전달 모델. GoRouter `extra`로 전달, `CreateVowScreen`이 step 2부터 시작 |
 
 ---
 
@@ -203,24 +208,47 @@ lib/
 - 실제 결제 요청 UI (WebView/SDK 호출) 미구현
 
 ### 백그라운드 검증
-- AlarmManager.setExact() + ForegroundService (WorkManager 아님) 로 자정 실행
+- AlarmManager.setExact() + ForegroundService (WorkManager 아님) — **서약별 개별 알람**
 - `PledgeMonitorService.kt` — 원시 SQLite 직접 접근 (Drift는 background isolate 불가)
-- `VerificationAlarmReceiver.kt` — BroadcastReceiver, 서비스 시작
-- `BootReceiver.kt` — 재부팅 후 알람 재등록
-- 카테고리별 검증 로직 분기
+- `VerificationAlarmReceiver.kt` — BroadcastReceiver, `vowId` extra를 서비스에 전달
+- `BootReceiver.kt` — 재부팅 후 모든 활성 서약 알람 재등록
+
+#### 알람 시각 규칙
+| 조건 | 알람 발화 시각 |
+|------|--------------|
+| `windowEndHour` 있음 | `windowEndHour:01` (창이 닫힌 직후) |
+| 창 없음 (한도/횟수) | `08:01` (아침) |
+
+예: "유튜브 23~07 금지" → 07:01 발화, [전날 23:00 ~ 당일 07:00] 구간 검증  
+예: "게임 09~18 금지" → 18:01 발화, [당일 09:00 ~ 18:00] 구간 검증  
+예: "배달앱 2회 이하" → 08:01 발화, 전날 실행 횟수 검증
+
+#### 알람 스케줄링 API
+- `PledgeMonitorService.scheduleAllActiveVowAlarms(context)` — DB에서 활성 서약 전체 읽어 각각 알람 등록. 앱 시작/서약 생성/재부팅 시 호출
+- `PledgeMonitorService.scheduleVowAlarm(context, vowId, conditionJson)` — 단일 서약 알람 등록. 요청코드 = `20000 + vowId`
+- Dart 브릿지: `VerificationScheduleService.scheduleAllVows()` → MethodChannel `'scheduleAllVows'`
+
+#### 검증 후 알림
+- **성공**: "오늘 해냈습니다" (채널: `pledge_success`, 중요도 DEFAULT)
+- **위반**: "[nickname]님, N원 납부 대상입니다" (채널: `violations`, 중요도 HIGH)
+- 성공 시 내일 같은 시각으로 알람 재등록; 위반 시 알람 중단
 
 #### 검증 구현 현황
 | 타입 | 상태 | 비고 |
 |------|------|------|
-| screenTime | ✅ 구현 완료 | 하루 한도 검증 |
-| game | ✅ 구현 완료 | 하루 한도 검증 |
-| delivery | ✅ 구현 완료 | 배민/쿠팡이츠/요기요 3개 고정 |
+| screenTime | ✅ 구현 완료 | 하루 한도 + 시간대 창 검증 (`queryEvents`) |
+| game | ✅ 구현 완료 | 하루 한도 + 시간대 창 검증 (`queryEvents`) |
+| delivery | ✅ 구현 완료 | 하루 실행 횟수 검증 (`MOVE_TO_FOREGROUND` 카운트) |
 | steps | ❌ 미구현 | else→true (자동 통과), Health Connect 미연결 |
 | sleep | ❌ 미구현 | else→true (자동 통과), Health Connect 미연결 |
 | exercise | ❌ 미구현 | else→true (자동 통과), Health Connect 미연결 |
 | custom | ⚠️ 자동 위반 | 항상 false 반환, 수동 체크 UI 미구현 |
 
-**알려진 버그**: `checkWindowOnly()` 함수는 항상 `true`를 반환 (레트로액티브 UsageEvents 조회 불가 문제). 시간대 제한 조건은 현재 집행되지 않음.
+#### 검증 기술 노트
+- `queryUsageStats(INTERVAL_DAILY, yesterday, today)` — 자정 실행 시 "어제" 전체 데이터 조회
+- `queryEvents(windowStart, windowEnd)` — 시간대 창 내 정확한 포어그라운드 시간 계산
+- 자정 교차 창(예: 23~07): `windowEnd = todayMidnight + endHour * 3600_000` (발화 시각 기준 전체 창 검증 가능)
+- delivery 패키지: `com.woowa.client.android` / `com.coupang.mobile.eats` / `kr.co.yogiyo.rokittech`
 
 ### 리스크 평가
 - `EvaluateRisk(RiskEvaluator)` use case
@@ -265,7 +293,14 @@ lib/
 - Sprint 1 (완료): 프로젝트 셋업, MethodChannel, Health Connect, DB 스키마, Clean Architecture 레이어 분리
 - Sprint 2 (완료): 서약 상세 화면 (고긴장 대시보드), 위반 타임라인, 리스크 평가, BehavioralInsight, 서약 만들기 4단계
 - Sprint 3 (완료): 백그라운드 검증 엔진(screenTime/game/delivery), 위반 감지 로직, 푸시 알림, 카카오페이 딥링크 콜백, 온보딩 UI
-- Sprint 4 (진행 중): UX QA, Play Store 내부 테스트 배포 준비
+- Sprint 4 (완료): UX QA, 온보딩 프리셋 개선, 검증 엔진 버그 수정, 서약별 알람 시스템 재설계
+  - 온보딩 프리셋 3개 교체 (steps 제거, 시간대 창 기반 프리셋으로 개편)
+  - `VowFormPreset` 모델 추가 — 프리셋이 GoRouter extra로 서약 만들기 화면에 전달
+  - 검증 엔진 버그 수정: `queryUsageStats` 어제 범위 수정, delivery 패키지명 수정, delivery 실행 횟수 검증 추가
+  - `checkWindowOnly()` 삭제 → `queryEvents()` 기반 시간대 창 실검증으로 교체
+  - 단일 자정 알람 → **서약별 개별 알람** (창 종료 시각 기반) 재설계
+  - 성공/위반 알림 분리, 성공 시 알람 자동 재등록
+- Sprint 5 (예정): Play Store 내부 테스트 배포
 
 ## 디버그 도구
 - 설정 화면 하단 **"개발자 도구"** 섹션 (`kDebugMode`에서만 표시)

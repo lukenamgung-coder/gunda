@@ -8,6 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/database/app_database.dart';
 import '../../core/providers/database_provider.dart';
+import '../../shared/models/enums.dart';
+import '../../shared/models/vow_form_preset.dart';
 import '../../shared/theme/app_theme.dart';
 
 // ── 닉네임 추천 데이터 ────────────────────────────────────────
@@ -42,37 +44,63 @@ const _kAllSuggestions = [
 
 // ── 서약 프리셋 ───────────────────────────────────────────────
 
-const _kPresets = [
-  _PresetItem(
-    label: '3일간, 23시 이후 유튜브 0분',
-    amount: '₩10,000',
-    tag: '가장 많이 시작한 서약',
-  ),
-  _PresetItem(
-    label: '토·일 각각 10,000보 이상',
-    amount: '₩5,000',
-    tag: null,
-  ),
-  _PresetItem(
-    label: '3일간 배달앱 실행 0회',
-    amount: '₩8,000',
-    tag: null,
-  ),
-];
-
 class _PresetItem {
   final String label;
   final String amount;
   final String? tag;
+  final VowFormPreset formPreset;
+
   const _PresetItem({
     required this.label,
     required this.amount,
+    required this.formPreset,
     this.tag,
   });
-
-  // GoRouter로 넘길 때 쓰는 단일 문자열
-  String get routeValue => '$label ($amount)';
 }
+
+const _kYoutubePackage = 'com.google.android.youtube';
+
+const _kPresets = [
+  _PresetItem(
+    label: '3일간 유튜브 11시 이후 금지',
+    amount: '₩5,000',
+    tag: '가장 많이 시작한 서약',
+    formPreset: VowFormPreset(
+      type: PledgeType.screenTime,
+      durationDays: 3,
+      penaltyAmount: 5000,
+      screenTimePackages: [_kYoutubePackage],
+      hasDurationLimit: false,
+      screenTimeLimitHours: 0,
+      hasWindowLimit: true,
+      windowStartHour: 23,
+      windowEndHour: 7,
+    ),
+  ),
+  _PresetItem(
+    label: '3일간 9시~18시 게임 금지',
+    amount: '₩5,000',
+    formPreset: VowFormPreset(
+      type: PledgeType.game,
+      durationDays: 3,
+      penaltyAmount: 5000,
+      gameTargetMinutes: 0,
+      gameWindowStartHour: 9,
+      gameWindowEndHour: 18,
+    ),
+  ),
+  _PresetItem(
+    label: '1주일간 배달앱 2회 이하',
+    amount: '₩5,000',
+    formPreset: VowFormPreset(
+      type: PledgeType.delivery,
+      durationDays: 7,
+      penaltyAmount: 5000,
+      deliveryFullBan: false,
+      deliveryMaxCount: 2,
+    ),
+  ),
+];
 
 // ── 온보딩 화면 ───────────────────────────────────────────────
 
@@ -104,16 +132,13 @@ class _OnboardingScreenState
 
   Future<void> _finish({
     required bool goCreate,
-    String? preset,
+    VowFormPreset? preset,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_done', true);
     if (!mounted) return;
     if (goCreate) {
-      final query = preset != null
-          ? '?preset=${Uri.encodeComponent(preset)}'
-          : '';
-      context.go('/home/vow/create$query');
+      context.go('/home/vow/create', extra: preset);
     } else {
       context.go('/home');
     }
@@ -144,6 +169,7 @@ class _OnboardingScreenState
                       _finish(goCreate: true, preset: preset),
                   onSkip: () => _finish(goCreate: false),
                 ),
+
               ],
             ),
 
@@ -695,7 +721,7 @@ class _NickChip extends StatelessWidget {
 //       body 카피 교체 ("이런건 한번에" → 직접적 행동 촉구).
 
 class _Page4 extends StatefulWidget {
-  final void Function(String? presetLabel) onStart;
+  final void Function(VowFormPreset? preset) onStart;
   final VoidCallback onSkip;
   const _Page4({required this.onStart, required this.onSkip});
 
@@ -837,7 +863,7 @@ class _Page4State extends State<_Page4> {
           : '이걸로 겁니다',
       onPrimary: () => widget.onStart(
           _selected != null
-              ? _kPresets[_selected!].routeValue
+              ? _kPresets[_selected!].formPreset
               : null),
       ghostLabel: '일단 넘어가기',
       onGhost: widget.onSkip,

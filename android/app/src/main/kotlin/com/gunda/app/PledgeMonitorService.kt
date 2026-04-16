@@ -11,6 +11,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,13 +51,19 @@ class PledgeMonitorService : Service() {
         ensureNotificationChannels()
         startForeground(NOTIF_PROGRESS_ID, buildProgressNotification())
 
+        val vowId = intent?.getLongExtra("vowId", -1L) ?: -1L
+
         scope.launch {
             try {
-                runVerification()
+                if (vowId > 0L) {
+                    runVerificationForVow(vowId)
+                } else {
+                    // Fallback: verify all active vows (boot recovery / manual trigger)
+                    runVerification()
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Verification failed", e)
             } finally {
-                scheduleNextMidnight(applicationContext)
                 stopSelf(startId)
             }
         }
@@ -94,6 +101,26 @@ class PledgeMonitorService : Service() {
         }
     }
 
+    /** Verify a single vow by ID. Used by per-vow alarms. */
+    private fun runVerificationForVow(vowId: Long) {
+        val dbFile = File(applicationContext.filesDir, "gunda.sqlite")
+        if (!dbFile.exists()) {
+            Log.w(TAG, "DB not found — skipping verification for vow #$vowId")
+            return
+        }
+        SQLiteDatabase.openDatabase(
+            dbFile.absolutePath, null, SQLiteDatabase.OPEN_READWRITE,
+        ).use { db ->
+            completeExpiredVows(db)
+            val vow = queryVow(db, vowId) ?: run {
+                Log.d(TAG, "Vow #$vowId not active — skipping")
+                return
+            }
+            val nickname = queryUserNickname(db)
+            verifyVow(vow, db, nickname)
+        }
+    }
+
     // ── DB queries ────────────────────────────────────────────
 
     private data class VowRow(
@@ -128,6 +155,24 @@ class PledgeMonitorService : Service() {
             }
         }
         return result
+    }
+
+    /** Returns the single active vow with [vowId], or null if not found / not active. */
+    private fun queryVow(db: SQLiteDatabase, vowId: Long): VowRow? {
+        db.rawQuery(
+            "SELECT id, title, pledge_type, condition_json, penalty_amount " +
+                "FROM vows WHERE id = ? AND status = 'active'",
+            arrayOf(vowId.toString()),
+        ).use { c ->
+            if (!c.moveToFirst()) return null
+            return VowRow(
+                id = c.getLong(0),
+                title = c.getString(1),
+                pledgeType = c.getString(2),
+                conditionJson = c.getString(3),
+                penaltyAmount = c.getLong(4),
+            )
+        }
     }
 
     /** Mark any active vows whose end_date has passed as completed. */
@@ -187,7 +232,14 @@ class PledgeMonitorService : Service() {
             measuredDataJson = measuredJson,
         )
 
-        if (!passed) {
+        if (passed) {
+            postSuccessNotification(
+                notifId = (3000 + vow.id).toInt(),
+                vowTitle = vow.title,
+            )
+            // Reschedule this vow's alarm for the same time tomorrow
+            scheduleVowAlarm(applicationContext, vow.id, vow.conditionJson)
+        } else {
             insertViolation(db, vow.id, verificationId, vow.penaltyAmount)
             updateVowStatus(db, vow.id, "violated")
             postViolationNotification(
@@ -197,6 +249,7 @@ class PledgeMonitorService : Service() {
                 vowId = vow.id,
                 nickname = nickname,
             )
+            // Do NOT reschedule — vow is violated, alarm stops
         }
     }
 
@@ -204,14 +257,29 @@ class PledgeMonitorService : Service() {
 
     private fun verifyUsageBased(condition: JSONObject, type: String): Pair<Boolean, Long> {
         val hasDurationLimit = condition.optBoolean("hasDurationLimit", true)
-        if (!hasDurationLimit) return Pair(checkWindowOnly(condition), 0L)
-
-        val targetValue = condition.optDouble("targetValue", 0.0)
-        val limitMinutes = (targetValue * 60).toLong()
+        val windowStart = condition.optInt("windowStartHour", -1)
+        val windowEnd = condition.optInt("windowEndHour", -1)
+        val hasWindow = windowStart >= 0 && windowEnd >= 0
 
         val packageNames: List<String> = condition.optJSONArray("targetApps")
             ?.let { arr -> (0 until arr.length()).map { arr.getString(it) } }
             ?: emptyList()
+
+        if (hasWindow) {
+            val (winStartMs, winEndMs) = getWindowTimeRange(windowStart, windowEnd)
+            val usedInWindow = getAppUsageInWindowMinutes(packageNames, winStartMs, winEndMs)
+            if (!hasDurationLimit) {
+                // Window-only: any usage inside the forbidden window = violation
+                return Pair(usedInWindow == 0L, usedInWindow)
+            }
+            // Both window + daily limit: window violation fails immediately
+            if (usedInWindow > 0) return Pair(false, usedInWindow)
+        }
+
+        if (!hasDurationLimit) return Pair(true, 0L)
+
+        val targetValue = condition.optDouble("targetValue", 0.0)
+        val limitMinutes = (targetValue * 60).toLong()
 
         val usedMinutes = if (packageNames.isEmpty()) {
             getTotalUsageTodayMinutes()
@@ -223,62 +291,134 @@ class PledgeMonitorService : Service() {
     }
 
     private fun verifyDelivery(condition: JSONObject): Pair<Boolean, Long> {
-        // Fixed delivery app packages
         val deliveryApps = listOf(
-            "com.etc.baemin",        // 배달의민족
-            "com.coupang.deliverapp", // 쿠팡이츠
-            "kr.co.yogiyo.app",      // 요기요
+            "com.woowa.client.android",   // 배달의민족
+            "com.coupang.mobile.eats",    // 쿠팡이츠
+            "kr.co.yogiyo.rokittech",     // 요기요
         )
-        val totalUsed = deliveryApps.sumOf { getAppUsageTodayMinutes(it) }
-        // Any usage of a delivery app today = violation
-        return Pair(totalUsed == 0L, totalUsed)
-    }
-
-    private fun checkWindowOnly(condition: JSONObject): Boolean {
-        val windowStart = condition.optInt("windowStartHour", -1)
-        val windowEnd = condition.optInt("windowEndHour", -1)
-        if (windowStart < 0 || windowEnd < 0) return true
-
-        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-        // Violation if used during the forbidden window — we can't check this
-        // retroactively without usage events; pass for now
-        return true
+        val targetValue = condition.optDouble("targetValue", 0.0).toLong()
+        val (startMs, endMs) = getYesterdayRange()
+        val launches = countAppLaunchesInPeriod(deliveryApps, startMs, endMs).toLong()
+        return Pair(launches <= targetValue, launches)
     }
 
     // ── UsageStats helpers ────────────────────────────────────
 
-    private fun getAppUsageTodayMinutes(packageName: String): Long {
-        val usm = getSystemService(Context.USAGE_STATS_SERVICE)
-            as? UsageStatsManager ?: return 0L
-        val now = System.currentTimeMillis()
-        val startOfDay = Calendar.getInstance().apply {
+    /**
+     * Returns [yesterdayMidnight, todayMidnight] in milliseconds.
+     * Verification runs at midnight, so "the day being verified" is yesterday.
+     */
+    private fun getYesterdayRange(): Pair<Long, Long> {
+        val todayMidnight = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
-        val stats = usm.queryUsageStats(
-            UsageStatsManager.INTERVAL_DAILY, startOfDay, now,
-        )
+        val yesterdayMidnight = todayMidnight - 24 * 60 * 60 * 1000L
+        return Pair(yesterdayMidnight, todayMidnight)
+    }
+
+    /**
+     * Returns [startMs, endMs] for the forbidden window on the day being verified.
+     * For crossing-midnight windows (endHour ≤ startHour) the end is capped at
+     * today's midnight — the post-midnight portion is checked the following night.
+     */
+    private fun getWindowTimeRange(startHour: Int, endHour: Int): Pair<Long, Long> {
+        val (yesterdayMidnight, todayMidnight) = getYesterdayRange()
+        val windowStartMs = yesterdayMidnight + startHour * 60 * 60 * 1000L
+        val windowEndMs = if (endHour <= startHour) {
+            // Crosses midnight: end is today at endHour (alarm fires at endHour:01)
+            todayMidnight + endHour * 60 * 60 * 1000L
+        } else {
+            yesterdayMidnight + endHour * 60 * 60 * 1000L
+        }
+        return Pair(windowStartMs, windowEndMs)
+    }
+
+    /** Total foreground minutes for [packageName] on the day being verified. */
+    private fun getAppUsageTodayMinutes(packageName: String): Long {
+        val usm = getSystemService(Context.USAGE_STATS_SERVICE)
+            as? UsageStatsManager ?: return 0L
+        val (startMs, endMs) = getYesterdayRange()
+        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startMs, endMs)
         val ms = stats?.find { it.packageName == packageName }
             ?.totalTimeInForeground ?: 0L
         return ms / 60_000L
     }
 
+    /** Total foreground minutes across all apps on the day being verified. */
     private fun getTotalUsageTodayMinutes(): Long {
         val usm = getSystemService(Context.USAGE_STATS_SERVICE)
             as? UsageStatsManager ?: return 0L
-        val now = System.currentTimeMillis()
-        val startOfDay = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 0)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-        val stats = usm.queryUsageStats(
-            UsageStatsManager.INTERVAL_DAILY, startOfDay, now,
-        )
+        val (startMs, endMs) = getYesterdayRange()
+        val stats = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, startMs, endMs)
         return (stats?.sumOf { it.totalTimeInForeground } ?: 0L) / 60_000L
+    }
+
+    /**
+     * Foreground minutes in [packageNames] within [windowStartMs, windowEndMs].
+     * Uses queryEvents for precise sub-day ranges.
+     * Empty [packageNames] matches all packages.
+     */
+    private fun getAppUsageInWindowMinutes(
+        packageNames: List<String>,
+        windowStartMs: Long,
+        windowEndMs: Long,
+    ): Long {
+        if (windowStartMs >= windowEndMs) return 0L
+        val usm = getSystemService(Context.USAGE_STATS_SERVICE)
+            as? UsageStatsManager ?: return 0L
+        val events = usm.queryEvents(windowStartMs, windowEndMs)
+        val event = UsageEvents.Event()
+        var foregroundStart: Long? = null
+        var totalMs = 0L
+
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            if (packageNames.isNotEmpty() && event.packageName !in packageNames) continue
+            when (event.eventType) {
+                UsageEvents.Event.MOVE_TO_FOREGROUND -> {
+                    foregroundStart = maxOf(event.timeStamp, windowStartMs)
+                }
+                UsageEvents.Event.MOVE_TO_BACKGROUND -> {
+                    if (foregroundStart != null) {
+                        totalMs += minOf(event.timeStamp, windowEndMs) - foregroundStart
+                        foregroundStart = null
+                    }
+                }
+            }
+        }
+        // App was still in foreground at end of window
+        if (foregroundStart != null) {
+            totalMs += windowEndMs - foregroundStart
+        }
+        return maxOf(0L, totalMs) / 60_000L
+    }
+
+    /**
+     * Number of MOVE_TO_FOREGROUND events for [packageNames] in [startMs, endMs].
+     * Used for delivery app launch-count enforcement.
+     */
+    private fun countAppLaunchesInPeriod(
+        packageNames: List<String>,
+        startMs: Long,
+        endMs: Long,
+    ): Int {
+        if (startMs >= endMs) return 0
+        val usm = getSystemService(Context.USAGE_STATS_SERVICE)
+            as? UsageStatsManager ?: return 0
+        val events = usm.queryEvents(startMs, endMs)
+        val event = UsageEvents.Event()
+        var count = 0
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            if (event.packageName in packageNames &&
+                event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                count++
+            }
+        }
+        return count
     }
 
     // ── DB writes ─────────────────────────────────────────────
@@ -337,6 +477,10 @@ class PledgeMonitorService : Service() {
                 CH_VIOLATION, "서약 위반",
                 NotificationManager.IMPORTANCE_HIGH,
             ).apply { description = "서약 위반 감지 및 납부 안내" },
+            NotificationChannel(
+                CH_SUCCESS, "서약 달성",
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply { description = "오늘 서약을 지켰습니다" },
         ).forEach { nm.createNotificationChannel(it) }
     }
 
@@ -349,6 +493,18 @@ class PledgeMonitorService : Service() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .build()
 
+    private fun postSuccessNotification(notifId: Int, vowTitle: String) {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notif = NotificationCompat.Builder(this, CH_SUCCESS)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle(vowTitle)
+            .setContentText("오늘 해냈습니다")
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+        nm.notify(notifId, notif)
+    }
+
     private fun postViolationNotification(
         notifId: Int,
         vowTitle: String,
@@ -357,7 +513,7 @@ class PledgeMonitorService : Service() {
         nickname: String = "사용자",
     ) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val body = "${nickname}이(가) 서약을 어겼습니다 — ${formatAmount(penaltyAmount)} 송금 대상"
+        val body = "${nickname}님, ${formatAmount(penaltyAmount)} 납부 대상입니다"
 
         val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
             ?.apply { putExtra("vowId", vowId) }
@@ -432,34 +588,86 @@ class PledgeMonitorService : Service() {
         private const val NOTIF_PROGRESS_ID = 1001
         private const val CH_PROGRESS = "pledge_progress"
         private const val CH_VIOLATION = "violations"
-        private const val ALARM_REQUEST_CODE = 9001
+        private const val CH_SUCCESS = "pledge_success"
+        // Per-vow alarm request codes: BASE_ALARM_CODE + vowId
+        private const val BASE_ALARM_CODE = 20000
 
         /**
-         * Schedules [VerificationAlarmReceiver] to fire at the next midnight.
-         * Safe to call multiple times — replaces any existing alarm.
+         * Reads all active vows from the DB and schedules a per-vow alarm for
+         * each one. Safe to call multiple times (FLAG_UPDATE_CURRENT replaces
+         * existing alarms). Called on app start, after vow creation, and on boot.
          */
-        fun scheduleNextMidnight(context: Context) {
-            val midnight = Calendar.getInstance().apply {
-                add(Calendar.DAY_OF_YEAR, 1)
-                set(Calendar.HOUR_OF_DAY, 0)
-                set(Calendar.MINUTE, 0)
-                set(Calendar.SECOND, 0)
-                set(Calendar.MILLISECOND, 0)
-            }.timeInMillis
+        fun scheduleAllActiveVowAlarms(context: Context) {
+            val dbFile = java.io.File(context.filesDir, "gunda.sqlite")
+            if (!dbFile.exists()) {
+                Log.w(TAG, "DB not found — skipping scheduleAllActiveVowAlarms")
+                return
+            }
+            android.database.sqlite.SQLiteDatabase.openDatabase(
+                dbFile.absolutePath, null,
+                android.database.sqlite.SQLiteDatabase.OPEN_READONLY,
+            ).use { db ->
+                db.rawQuery(
+                    "SELECT id, condition_json FROM vows WHERE status = 'active'",
+                    null,
+                ).use { c ->
+                    while (c.moveToNext()) {
+                        val vowId = c.getLong(0)
+                        val conditionJson = c.getString(1)
+                        scheduleVowAlarm(context, vowId, conditionJson)
+                    }
+                }
+            }
+        }
+
+        /**
+         * Schedules (or replaces) the alarm for a single vow.
+         * The alarm fires at [getVerificationTime] on the next occurrence of that
+         * time, carrying the [vowId] as an Intent extra.
+         */
+        fun scheduleVowAlarm(context: Context, vowId: Long, conditionJson: String) {
+            val condition = runCatching { JSONObject(conditionJson) }.getOrNull() ?: return
+            val (hour, minute) = getVerificationTime(condition)
+            val triggerMs = nextOccurrenceOf(hour, minute)
 
             val intent = Intent(context, VerificationAlarmReceiver::class.java)
+                .putExtra("vowId", vowId)
             val pi = PendingIntent.getBroadcast(
                 context,
-                ALARM_REQUEST_CODE,
+                (BASE_ALARM_CODE + vowId).toInt(),
                 intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
-
             val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            // setExact is sufficient; we don't need per-second accuracy
-            am.setExact(AlarmManager.RTC_WAKEUP, midnight, pi)
+            am.setExact(AlarmManager.RTC_WAKEUP, triggerMs, pi)
+            Log.i(TAG, "Vow #$vowId alarm set for $hour:${minute.toString().padStart(2,'0')}")
+        }
 
-            Log.i(TAG, "Alarm scheduled for next midnight (${midnight})")
+        /**
+         * Returns the (hour, minute) at which this vow should be verified.
+         * Window-based: fires 1 minute after the window closes.
+         * Duration/count/no-window: fires at 08:01 (morning).
+         */
+        fun getVerificationTime(condition: JSONObject): Pair<Int, Int> {
+            val windowEnd = condition.optInt("windowEndHour", -1)
+            return if (windowEnd >= 0) Pair(windowEnd, 1) else Pair(8, 1)
+        }
+
+        /**
+         * Returns the epoch-ms of the next wall-clock occurrence of [hour]:[minute].
+         * If that time has already passed today, returns tomorrow's occurrence.
+         */
+        fun nextOccurrenceOf(hour: Int, minute: Int): Long {
+            val cal = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, hour)
+                set(Calendar.MINUTE, minute)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            if (cal.timeInMillis <= System.currentTimeMillis()) {
+                cal.add(Calendar.DAY_OF_YEAR, 1)
+            }
+            return cal.timeInMillis
         }
     }
 }

@@ -8,8 +8,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/database/app_database.dart';
 import '../../core/providers/database_provider.dart';
 import '../../core/services/usage_stats_service.dart';
+import '../../core/services/verification_schedule_service.dart';
 import '../../shared/models/enums.dart';
 import '../../shared/models/pledge_condition.dart';
+import '../../shared/models/vow_form_preset.dart';
 import '../../shared/theme/app_theme.dart';
 
 const _deliveryApps = [
@@ -64,7 +66,8 @@ String _fmtMoney(int v) => '${v.toString().replaceAllMapped(
 // ─────────────────────────────────────────────────────────
 
 class CreateVowScreen extends ConsumerStatefulWidget {
-  const CreateVowScreen({super.key});
+  final VowFormPreset? preset;
+  const CreateVowScreen({super.key, this.preset});
 
   @override
   ConsumerState<CreateVowScreen> createState() =>
@@ -120,6 +123,61 @@ class _CreateVowScreenState
   void initState() {
     super.initState();
     _condition = PledgeCondition.defaultFor(_type);
+    _applyPreset(widget.preset);
+  }
+
+  void _applyPreset(VowFormPreset? p) {
+    if (p == null) return;
+    _type = p.type;
+    _durationDays = p.durationDays;
+    _penalty = p.penaltyAmount;
+    // Start at step 2 (period/penalty) — category & conditions are pre-filled
+    _step = 2;
+
+    switch (p.type) {
+      case PledgeType.screenTime:
+        _selectedScreenTimePackages = List.of(p.screenTimePackages);
+        _hasDurationLimit = p.hasDurationLimit;
+        _hasWindowLimit = p.hasWindowLimit;
+        _windowStartHour = p.windowStartHour;
+        _windowEndHour = p.windowEndHour;
+        _condition = PledgeCondition(
+          type: PledgeType.screenTime,
+          targetValue: p.screenTimeLimitHours,
+          unit: '시간',
+          operator: ConditionOperator.lte,
+          targetApps: p.screenTimePackages.isEmpty
+              ? null
+              : List.of(p.screenTimePackages),
+          hasDurationLimit: p.hasDurationLimit,
+          windowStartHour: p.hasWindowLimit ? p.windowStartHour : null,
+          windowEndHour: p.hasWindowLimit ? p.windowEndHour : null,
+        );
+      case PledgeType.game:
+        final gameHasWindow =
+            p.gameWindowStartHour != null && p.gameWindowEndHour != null;
+        _condition = PledgeCondition(
+          type: PledgeType.game,
+          targetValue: p.gameTargetMinutes,
+          unit: '분',
+          operator: ConditionOperator.lte,
+          // Window-only: disable daily duration check so only the window matters
+          hasDurationLimit: !gameHasWindow,
+          windowStartHour: p.gameWindowStartHour,
+          windowEndHour: p.gameWindowEndHour,
+        );
+      case PledgeType.delivery:
+        _deliveryFullBan = p.deliveryFullBan;
+        _deliveryMaxCount = p.deliveryMaxCount;
+        _condition = PledgeCondition(
+          type: PledgeType.delivery,
+          targetValue: p.deliveryFullBan ? 0 : p.deliveryMaxCount.toDouble(),
+          unit: '회',
+          operator: ConditionOperator.lte,
+        );
+      default:
+        _condition = PledgeCondition.defaultFor(p.type);
+    }
   }
 
   @override
@@ -216,6 +274,10 @@ class _CreateVowScreenState
         return '매일 ${_condition.toDisplayString()} 운동';
 
       case PledgeType.game:
+        if (_condition.windowStartHour != null &&
+            _condition.windowEndHour != null) {
+          return '게임 ${_condition.windowStartHour}시~${_condition.windowEndHour}시 금지';
+        }
         return _condition.targetValue == 0
             ? '게임 완전 차단'
             : '게임 하루 ${_condition.targetValue.toInt()}분 이하';
@@ -271,6 +333,10 @@ class _CreateVowScreenState
             ? '나는 배달앱을\n완전히 금지한다.'
             : '나는 배달앱 주문을 하루 $_deliveryMaxCount회로 제한한다.';
       case PledgeType.game:
+        if (_condition.windowStartHour != null &&
+            _condition.windowEndHour != null) {
+          return '나는 게임을\n${_condition.windowStartHour}시~${_condition.windowEndHour}시에 하지 않는다.';
+        }
         return _condition.targetValue == 0
             ? '나는 게임을\n완전히 차단한다.'
             : '나는 게임을\n하루 ${_condition.targetValue.toInt()}분 이하로 제한한다.';
@@ -323,6 +389,9 @@ class _CreateVowScreenState
         targetApps: _selectedGamePackages.isEmpty
             ? null
             : List.unmodifiable(_selectedGamePackages),
+        hasDurationLimit: _condition.hasDurationLimit,
+        windowStartHour: _condition.windowStartHour,
+        windowEndHour: _condition.windowEndHour,
       );
     }
     return _condition;
@@ -378,6 +447,8 @@ class _CreateVowScreenState
       startDate: start,
       endDate: end,
     ));
+    // Schedule (or refresh) the alarm for the new vow
+    await VerificationScheduleService.scheduleAllVows();
     if (mounted) context.pop();
   }
 

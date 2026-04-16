@@ -6,6 +6,7 @@ import '../../features/splash/splash_screen.dart';
 import '../../features/onboarding/onboarding_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/vow/create_vow_screen.dart';
+import '../../shared/models/vow_form_preset.dart';
 import '../../features/vow/vow_detail_screen.dart';
 import '../../features/settings/settings_screen.dart';
 
@@ -35,7 +36,9 @@ GoRouter appRouter(Ref ref) {
           GoRoute(
             path: 'vow/create',
             name: 'vow-create',
-            builder: (_, _) => const CreateVowScreen(),
+            builder: (_, state) => CreateVowScreen(
+              preset: state.extra as VowFormPreset?,
+            ),
           ),
           GoRoute(
             path: 'vow/:id',
