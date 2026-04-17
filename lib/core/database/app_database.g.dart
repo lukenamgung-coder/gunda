@@ -1033,14 +1033,14 @@ class Vow extends DataClass implements Insertable<Vow> {
   final String title;
   final String? description;
 
-  /// PledgeType.name 문자열 저장
+  /// VowType.name 문자열 저장
   /// (screenTime | sleep | steps | exercise | custom)
   final String pledgeType;
 
   /// PledgeStatus.name 문자열 저장
   final String status;
 
-  /// PledgeCondition JSON 문자열
+  /// VowCondition JSON 문자열
   final String conditionJson;
 
   /// 위반 1회당 벌금 (원)

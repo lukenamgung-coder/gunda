@@ -62,7 +62,7 @@
         <!-- Kakao Native App Key — 실제 키로 교체 필요 -->
         <meta-data
             android:name="com.kakao.sdk.AppKey"
-            android:value="KAKAO_NATIVE_APP_KEY" />
+            android:value="f5156bcd0dfed454ca9db9041ca4caf6" />
 
         <activity
             android:name=".MainActivity"
@@ -102,7 +102,7 @@
 
         <!-- 백그라운드 서약 검증 서비스 -->
         <service
-            android:name=".PledgeMonitorService"
+            android:name=".VowMonitorService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 

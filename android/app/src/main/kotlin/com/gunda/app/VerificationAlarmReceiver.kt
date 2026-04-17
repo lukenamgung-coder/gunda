@@ -7,7 +7,7 @@ import androidx.core.content.ContextCompat
 
 /**
  * AlarmManager target — wakes the app at the vow's verification time and starts
- * [PledgeMonitorService] as a foreground service for that specific vow.
+ * [VowMonitorService] as a foreground service for that specific vow.
  *
  * The [vowId] extra identifies which vow to verify. If absent (legacy / fallback),
  * the service verifies all active vows.
@@ -15,7 +15,7 @@ import androidx.core.content.ContextCompat
 class VerificationAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val vowId = intent.getLongExtra("vowId", -1L)
-        val serviceIntent = Intent(context, PledgeMonitorService::class.java)
+        val serviceIntent = Intent(context, VowMonitorService::class.java)
             .putExtra("vowId", vowId)
         ContextCompat.startForegroundService(context, serviceIntent)
     }

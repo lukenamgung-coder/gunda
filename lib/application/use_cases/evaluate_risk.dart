@@ -18,8 +18,8 @@ class EvaluateRisk {
     final condition = terms.condition;
     int? usageMin;
 
-    if (condition.type == PledgeType.screenTime ||
-        condition.type == PledgeType.game) {
+    if (condition.type == VowType.screenTime ||
+        condition.type == VowType.game) {
       final hasPermission =
           await UsageStatsService.checkPermission();
       if (hasPermission) {

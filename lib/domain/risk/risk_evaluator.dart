@@ -16,7 +16,7 @@ class RiskEvaluator {
     final consequence = terms.penalty.consequenceLabel;
 
     // ── Window-only screenTime ─────────────────────────
-    if (condition.type == PledgeType.screenTime &&
+    if (condition.type == VowType.screenTime &&
         !condition.hasDurationLimit &&
         condition.windowStartHour != null &&
         condition.windowEndHour != null) {
@@ -43,8 +43,8 @@ class RiskEvaluator {
     }
 
     // ── Usage-based (screenTime duration, game) ────────
-    if (condition.type == PledgeType.screenTime ||
-        condition.type == PledgeType.game) {
+    if (condition.type == VowType.screenTime ||
+        condition.type == VowType.game) {
       if (!signal.hasUsageData) {
         return RiskSnapshot.noData(consequenceLabel: consequence);
       }

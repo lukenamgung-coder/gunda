@@ -2,8 +2,8 @@ import 'dart:convert';
 import 'enums.dart';
 
 /// 서약 조건 모델 (DB에 JSON 문자열로 저장)
-class PledgeCondition {
-  final PledgeType type;
+class VowCondition {
+  final VowType type;
   final double targetValue;
   final String unit;
   final ConditionOperator operator;
@@ -24,7 +24,7 @@ class PledgeCondition {
   /// 스크린타임 전용 — 금지 종료 시각 (0‑23). null = 시간대 제한 없음
   final int? windowEndHour;
 
-  const PledgeCondition({
+  const VowCondition({
     required this.type,
     required this.targetValue,
     required this.unit,
@@ -48,9 +48,9 @@ class PledgeCondition {
         if (windowEndHour != null) 'windowEndHour': windowEndHour,
       };
 
-  factory PledgeCondition.fromJson(Map<String, dynamic> json) {
-    return PledgeCondition(
-      type: PledgeType.values.byName(json['type'] as String),
+  factory VowCondition.fromJson(Map<String, dynamic> json) {
+    return VowCondition(
+      type: VowType.values.byName(json['type'] as String),
       targetValue: (json['targetValue'] as num).toDouble(),
       unit: json['unit'] as String,
       operator:
@@ -67,13 +67,13 @@ class PledgeCondition {
 
   String toJsonString() => jsonEncode(toJson());
 
-  factory PledgeCondition.fromJsonString(String s) =>
-      PledgeCondition.fromJson(jsonDecode(s) as Map<String, dynamic>);
+  factory VowCondition.fromJsonString(String s) =>
+      VowCondition.fromJson(jsonDecode(s) as Map<String, dynamic>);
 
   /// 사람이 읽기 쉬운 조건 설명
   String toDisplayString() {
     switch (type) {
-      case PledgeType.screenTime:
+      case VowType.screenTime:
         final durStr = hasDurationLimit
             ? (targetValue == 0
                 ? '완전 금지'
@@ -88,11 +88,11 @@ class PledgeCondition {
         if (winStr != null) return winStr;
         return '조건 없음';
 
-      case PledgeType.delivery:
+      case VowType.delivery:
         if (targetValue == 0) return '완전 금지';
         return '하루 ${targetValue.toInt()}회 이하';
 
-      case PledgeType.game:
+      case VowType.game:
         if (targetValue == 0) return '완전 금지';
         return '하루 ${targetValue.toInt()}분 이하';
 
@@ -118,47 +118,47 @@ class PledgeCondition {
   }
 
   /// 기본 조건 프리셋
-  static PledgeCondition defaultFor(PledgeType type) {
+  static VowCondition defaultFor(VowType type) {
     return switch (type) {
-      PledgeType.screenTime => const PledgeCondition(
-          type: PledgeType.screenTime,
+      VowType.screenTime => const VowCondition(
+          type: VowType.screenTime,
           targetValue: 2,
           unit: '시간',
           operator: ConditionOperator.lte,
           hasDurationLimit: true,
         ),
-      PledgeType.sleep => const PledgeCondition(
-          type: PledgeType.sleep,
+      VowType.sleep => const VowCondition(
+          type: VowType.sleep,
           targetValue: 7,
           unit: '시간',
           operator: ConditionOperator.gte,
         ),
-      PledgeType.steps => const PledgeCondition(
-          type: PledgeType.steps,
+      VowType.steps => const VowCondition(
+          type: VowType.steps,
           targetValue: 10000,
           unit: '걸음',
           operator: ConditionOperator.gte,
         ),
-      PledgeType.exercise => const PledgeCondition(
-          type: PledgeType.exercise,
+      VowType.exercise => const VowCondition(
+          type: VowType.exercise,
           targetValue: 30,
           unit: '분',
           operator: ConditionOperator.gte,
         ),
-      PledgeType.delivery => const PledgeCondition(
-          type: PledgeType.delivery,
+      VowType.delivery => const VowCondition(
+          type: VowType.delivery,
           targetValue: 0,
           unit: '회',
           operator: ConditionOperator.lte,
         ),
-      PledgeType.game => const PledgeCondition(
-          type: PledgeType.game,
+      VowType.game => const VowCondition(
+          type: VowType.game,
           targetValue: 60,
           unit: '분',
           operator: ConditionOperator.lte,
         ),
-      PledgeType.custom => const PledgeCondition(
-          type: PledgeType.custom,
+      VowType.custom => const VowCondition(
+          type: VowType.custom,
           targetValue: 1,
           unit: '회',
           operator: ConditionOperator.gte,

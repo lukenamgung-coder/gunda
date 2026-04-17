@@ -34,7 +34,7 @@ void main() async {
   // TODO: Kakao Developers에서 발급받은 앱 키로 교체하세요
   // https://developers.kakao.com → 내 애플리케이션 → 앱 키
   KakaoSdk.init(
-    nativeAppKey: 'YOUR_KAKAO_NATIVE_APP_KEY',
+    nativeAppKey: 'f5156bcd0dfed454ca9db9041ca4caf6',
     javaScriptAppKey: 'YOUR_KAKAO_JS_APP_KEY',
   );
 

@@ -429,20 +429,20 @@ class _DoneCard extends StatelessWidget {
 // ─────────────────────────────────────────────────────────
 
 class _TypeIcon extends StatelessWidget {
-  final PledgeType type;
+  final VowType type;
   final double size;
   const _TypeIcon({required this.type, this.size = 40});
 
   @override
   Widget build(BuildContext context) {
     final icon = switch (type) {
-      PledgeType.screenTime => Icons.phone_android,
-      PledgeType.sleep => Icons.bedtime_outlined,
-      PledgeType.steps => Icons.directions_walk,
-      PledgeType.exercise => Icons.fitness_center,
-      PledgeType.delivery => Icons.delivery_dining,
-      PledgeType.game => Icons.sports_esports_outlined,
-      PledgeType.custom => Icons.edit_outlined,
+      VowType.screenTime => Icons.phone_android,
+      VowType.sleep => Icons.bedtime_outlined,
+      VowType.steps => Icons.directions_walk,
+      VowType.exercise => Icons.fitness_center,
+      VowType.delivery => Icons.delivery_dining,
+      VowType.game => Icons.sports_esports_outlined,
+      VowType.custom => Icons.edit_outlined,
     };
     return Container(
       width: size,

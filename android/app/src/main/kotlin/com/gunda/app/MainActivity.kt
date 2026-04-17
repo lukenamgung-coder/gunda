@@ -19,7 +19,7 @@ class MainActivity : FlutterActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "scheduleAllVows" -> {
-                    PledgeMonitorService.scheduleAllActiveVowAlarms(this)
+                    VowMonitorService.scheduleAllActiveVowAlarms(this)
                     result.success(null)
                 }
                 else -> result.notImplemented()

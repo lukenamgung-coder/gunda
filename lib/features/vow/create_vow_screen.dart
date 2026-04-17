@@ -10,7 +10,7 @@ import '../../core/providers/database_provider.dart';
 import '../../core/services/usage_stats_service.dart';
 import '../../core/services/verification_schedule_service.dart';
 import '../../shared/models/enums.dart';
-import '../../shared/models/pledge_condition.dart';
+import '../../shared/models/vow_condition.dart';
 import '../../shared/models/vow_form_preset.dart';
 import '../../shared/theme/app_theme.dart';
 
@@ -81,8 +81,8 @@ class _CreateVowScreenState
   final _phoneCtrl = TextEditingController();
 
   int _step = 0;
-  PledgeType _type = PledgeType.screenTime;
-  late PledgeCondition _condition;
+  VowType _type = VowType.screenTime;
+  late VowCondition _condition;
   int _durationDays = 7;
   int _penalty = 10000;
   bool _saving = false;
@@ -122,7 +122,7 @@ class _CreateVowScreenState
   @override
   void initState() {
     super.initState();
-    _condition = PledgeCondition.defaultFor(_type);
+    _condition = VowCondition.defaultFor(_type);
     _applyPreset(widget.preset);
   }
 
@@ -135,14 +135,14 @@ class _CreateVowScreenState
     _step = 2;
 
     switch (p.type) {
-      case PledgeType.screenTime:
+      case VowType.screenTime:
         _selectedScreenTimePackages = List.of(p.screenTimePackages);
         _hasDurationLimit = p.hasDurationLimit;
         _hasWindowLimit = p.hasWindowLimit;
         _windowStartHour = p.windowStartHour;
         _windowEndHour = p.windowEndHour;
-        _condition = PledgeCondition(
-          type: PledgeType.screenTime,
+        _condition = VowCondition(
+          type: VowType.screenTime,
           targetValue: p.screenTimeLimitHours,
           unit: '시간',
           operator: ConditionOperator.lte,
@@ -153,11 +153,11 @@ class _CreateVowScreenState
           windowStartHour: p.hasWindowLimit ? p.windowStartHour : null,
           windowEndHour: p.hasWindowLimit ? p.windowEndHour : null,
         );
-      case PledgeType.game:
+      case VowType.game:
         final gameHasWindow =
             p.gameWindowStartHour != null && p.gameWindowEndHour != null;
-        _condition = PledgeCondition(
-          type: PledgeType.game,
+        _condition = VowCondition(
+          type: VowType.game,
           targetValue: p.gameTargetMinutes,
           unit: '분',
           operator: ConditionOperator.lte,
@@ -166,17 +166,17 @@ class _CreateVowScreenState
           windowStartHour: p.gameWindowStartHour,
           windowEndHour: p.gameWindowEndHour,
         );
-      case PledgeType.delivery:
+      case VowType.delivery:
         _deliveryFullBan = p.deliveryFullBan;
         _deliveryMaxCount = p.deliveryMaxCount;
-        _condition = PledgeCondition(
-          type: PledgeType.delivery,
+        _condition = VowCondition(
+          type: VowType.delivery,
           targetValue: p.deliveryFullBan ? 0 : p.deliveryMaxCount.toDouble(),
           unit: '회',
           operator: ConditionOperator.lte,
         );
       default:
-        _condition = PledgeCondition.defaultFor(p.type);
+        _condition = VowCondition.defaultFor(p.type);
     }
   }
 
@@ -188,12 +188,12 @@ class _CreateVowScreenState
     super.dispose();
   }
 
-  void _onTypeChanged(PledgeType t) {
+  void _onTypeChanged(VowType t) {
     setState(() {
       _type = t;
-      _condition = PledgeCondition.defaultFor(t);
-      if (t == PledgeType.game && _installedGames == null) _loadGames();
-      if (t == PledgeType.screenTime && _installedUserApps == null) {
+      _condition = VowCondition.defaultFor(t);
+      if (t == VowType.game && _installedGames == null) _loadGames();
+      if (t == VowType.screenTime && _installedUserApps == null) {
         _loadUserApps();
       }
     });
@@ -227,7 +227,7 @@ class _CreateVowScreenState
 
   String _generateTitle() {
     switch (_type) {
-      case PledgeType.screenTime:
+      case VowType.screenTime:
         final pkgs = _selectedScreenTimePackages;
         final prefix = pkgs.isEmpty
             ? '스마트폰'
@@ -259,21 +259,21 @@ class _CreateVowScreenState
         if (winPart != null) return '$prefix $winPart';
         return '$prefix $durPart';
 
-      case PledgeType.delivery:
+      case VowType.delivery:
         return _deliveryFullBan
             ? '배달음식 완전 금지'
             : '배달음식 하루 $_deliveryMaxCount회 이하';
 
-      case PledgeType.steps:
+      case VowType.steps:
         return '하루 ${_condition.toDisplayString()} 달성';
 
-      case PledgeType.sleep:
+      case VowType.sleep:
         return '${_condition.toDisplayString()} 수면';
 
-      case PledgeType.exercise:
+      case VowType.exercise:
         return '매일 ${_condition.toDisplayString()} 운동';
 
-      case PledgeType.game:
+      case VowType.game:
         if (_condition.windowStartHour != null &&
             _condition.windowEndHour != null) {
           return '게임 ${_condition.windowStartHour}시~${_condition.windowEndHour}시 금지';
@@ -282,23 +282,23 @@ class _CreateVowScreenState
             ? '게임 완전 차단'
             : '게임 하루 ${_condition.targetValue.toInt()}분 이하';
 
-      case PledgeType.custom:
+      case VowType.custom:
         return _titleCtrl.text.trim();
     }
   }
 
   bool get _isStrict {
-    if (_type == PledgeType.screenTime) {
+    if (_type == VowType.screenTime) {
       return _hasDurationLimit && _condition.targetValue == 0;
     }
-    if (_type == PledgeType.delivery) return _deliveryFullBan;
-    if (_type == PledgeType.game) return _condition.targetValue == 0;
+    if (_type == VowType.delivery) return _deliveryFullBan;
+    if (_type == VowType.game) return _condition.targetValue == 0;
     return false;
   }
 
   String _buildContractSentence() {
     switch (_type) {
-      case PledgeType.screenTime:
+      case VowType.screenTime:
         final pkgs = _selectedScreenTimePackages;
         final target = pkgs.isEmpty
             ? '스마트폰'
@@ -328,11 +328,11 @@ class _CreateVowScreenState
         if (win != null) return '나는 $target을\n$win.';
         if (dur != null) return '나는 $target을\n$dur.';
         return '나는 $target을\n제한한다.';
-      case PledgeType.delivery:
+      case VowType.delivery:
         return _deliveryFullBan
             ? '나는 배달앱을\n완전히 금지한다.'
             : '나는 배달앱 주문을 하루 $_deliveryMaxCount회로 제한한다.';
-      case PledgeType.game:
+      case VowType.game:
         if (_condition.windowStartHour != null &&
             _condition.windowEndHour != null) {
           return '나는 게임을\n${_condition.windowStartHour}시~${_condition.windowEndHour}시에 하지 않는다.';
@@ -340,26 +340,26 @@ class _CreateVowScreenState
         return _condition.targetValue == 0
             ? '나는 게임을\n완전히 차단한다.'
             : '나는 게임을\n하루 ${_condition.targetValue.toInt()}분 이하로 제한한다.';
-      case PledgeType.sleep:
+      case VowType.sleep:
         return '나는 매일\n${_condition.targetValue.toInt()}시간 이상 수면한다.';
-      case PledgeType.steps:
+      case VowType.steps:
         final s = _condition.targetValue.toInt();
         final label = s >= 10000
             ? '${(s / 10000).toStringAsFixed(s % 10000 == 0 ? 0 : 1)}만'
             : '$s';
         return '나는 매일\n${label}보 이상 걷는다.';
-      case PledgeType.exercise:
+      case VowType.exercise:
         return '나는 매일\n${_condition.targetValue.toInt()}분 이상 운동한다.';
-      case PledgeType.custom:
+      case VowType.custom:
         final t = _titleCtrl.text.trim();
         return t.isEmpty ? '서약 내용을 입력하십시오.' : '나는\n$t';
     }
   }
 
-  PledgeCondition _buildCondition() {
-    if (_type == PledgeType.screenTime) {
-      return PledgeCondition(
-        type: PledgeType.screenTime,
+  VowCondition _buildCondition() {
+    if (_type == VowType.screenTime) {
+      return VowCondition(
+        type: VowType.screenTime,
         targetValue: _hasDurationLimit ? _condition.targetValue : 0,
         unit: '시간',
         operator: ConditionOperator.lte,
@@ -371,18 +371,18 @@ class _CreateVowScreenState
         windowEndHour: _hasWindowLimit ? _windowEndHour : null,
       );
     }
-    if (_type == PledgeType.delivery) {
-      return PledgeCondition(
-        type: PledgeType.delivery,
+    if (_type == VowType.delivery) {
+      return VowCondition(
+        type: VowType.delivery,
         targetValue:
             _deliveryFullBan ? 0 : _deliveryMaxCount.toDouble(),
         unit: '회',
         operator: ConditionOperator.lte,
       );
     }
-    if (_type == PledgeType.game) {
-      return PledgeCondition(
-        type: PledgeType.game,
+    if (_type == VowType.game) {
+      return VowCondition(
+        type: VowType.game,
         targetValue: _condition.targetValue,
         unit: '분',
         operator: ConditionOperator.lte,
@@ -398,9 +398,9 @@ class _CreateVowScreenState
   }
 
   bool get _canNext => switch (_step) {
-        1 => _type == PledgeType.custom
+        1 => _type == VowType.custom
             ? _titleCtrl.text.trim().isNotEmpty
-            : _type == PledgeType.screenTime
+            : _type == VowType.screenTime
                 ? _hasDurationLimit || _hasWindowLimit
                 : true,
         3 => _recipientCtrl.text.trim().isNotEmpty &&
@@ -598,33 +598,33 @@ class _CreateVowScreenState
 const _categories = [
   // ── 구현 완료 ──────────────────────────────────────
   (
-    PledgeType.screenTime,
+    VowType.screenTime,
     '디지털 디톡스',
     Icons.phone_android_outlined,
     '앱 사용 시간 제한'
   ),
   (
-    PledgeType.delivery,
+    VowType.delivery,
     '배달음식',
     Icons.delivery_dining_outlined,
     '배달앱 사용 제한'
   ),
   (
-    PledgeType.game,
+    VowType.game,
     '게임',
     Icons.sports_esports_outlined,
     '게임 시간 제한'
   ),
   // ── 준비 중 ────────────────────────────────────────
-  (PledgeType.sleep, '수면', Icons.bedtime_outlined, '취침·수면 시간'),
+  (VowType.sleep, '수면', Icons.bedtime_outlined, '취침·수면 시간'),
   (
-    PledgeType.steps,
+    VowType.steps,
     '걸음수',
     Icons.directions_walk_outlined,
     '하루 목표 걸음수'
   ),
   (
-    PledgeType.exercise,
+    VowType.exercise,
     '운동',
     Icons.fitness_center_outlined,
     '운동 시간 달성'
@@ -632,12 +632,12 @@ const _categories = [
 ];
 
 class _StepCategory extends StatelessWidget {
-  final PledgeType selected;
-  final ValueChanged<PledgeType> onChanged;
+  final VowType selected;
+  final ValueChanged<VowType> onChanged;
   const _StepCategory(
       {required this.selected, required this.onChanged});
 
-  static const _wip = {PledgeType.exercise, PledgeType.custom, PledgeType.steps, PledgeType.sleep};
+  static const _wip = {VowType.exercise, VowType.custom, VowType.steps, VowType.sleep};
 
   void _showWip(BuildContext context) {
     ScaffoldMessenger.of(context)
@@ -711,7 +711,7 @@ class _StepCategory extends StatelessWidget {
             icon: Icons.edit_outlined,
             label: '자유 입력',
             sub: '양심 모드 — 매일 직접 체크',
-            isSelected: selected == PledgeType.custom,
+            isSelected: selected == VowType.custom,
             onTap: () => _showWip(context),
           ),
         ),
@@ -851,12 +851,12 @@ class _CategoryTileFull extends StatelessWidget {
 // ─────────────────────────────────────────────────────────
 
 class _StepCondition extends StatelessWidget {
-  final PledgeType type;
+  final VowType type;
   final TextEditingController titleCtrl;
-  final PledgeCondition condition;
+  final VowCondition condition;
   final String contractSentence;
   final bool isStrict;
-  final ValueChanged<PledgeCondition> onConditionChanged;
+  final ValueChanged<VowCondition> onConditionChanged;
   // screenTime
   final List<String> selectedScreenTimePackages;
   final List<InstalledApp> installedUserApps;
@@ -937,7 +937,7 @@ class _StepCondition extends StatelessWidget {
         ),
         const SizedBox(height: 28),
         // Title only for custom type
-        if (type == PledgeType.custom) ...[
+        if (type == VowType.custom) ...[
           const _SectionLabel('서약 제목'),
           const SizedBox(height: 8),
           TextFormField(
@@ -955,15 +955,15 @@ class _StepCondition extends StatelessWidget {
   }
 
   Widget _buildConditionWidget() => switch (type) {
-        PledgeType.screenTime => _ScreenTimeConditionWidget(
+        VowType.screenTime => _ScreenTimeConditionWidget(
             selectedPackages: selectedScreenTimePackages,
             timeLimitHours: condition.targetValue.clamp(0, 6).toDouble(),
             otherApps: installedUserApps,
             loadingOtherApps: loadingUserApps,
             onPackagesChanged: onScreenTimePackagesChanged,
             onTimeLimitChanged: (v) => onConditionChanged(
-              PledgeCondition(
-                type: PledgeType.screenTime,
+              VowCondition(
+                type: VowType.screenTime,
                 targetValue: v,
                 unit: '시간',
                 operator: ConditionOperator.lte,
@@ -978,21 +978,21 @@ class _StepCondition extends StatelessWidget {
             onWindowStartChanged: onWindowStartChanged,
             onWindowEndChanged: onWindowEndChanged,
           ),
-        PledgeType.delivery => _DeliveryConditionWidget(
+        VowType.delivery => _DeliveryConditionWidget(
             fullBan: deliveryFullBan,
             maxCount: deliveryMaxCount,
             onFullBanChanged: onDeliveryFullBanChanged,
             onMaxCountChanged: onDeliveryMaxCountChanged,
           ),
-        PledgeType.game => _GameConditionWidget(
+        VowType.game => _GameConditionWidget(
             loading: loadingGames,
             games: installedGames,
             selectedPackages: selectedGamePackages,
             timeLimitMinutes: condition.targetValue,
             onSelectionChanged: onGameSelectionChanged,
             onTimeLimitChanged: (v) => onConditionChanged(
-              PledgeCondition(
-                type: PledgeType.game,
+              VowCondition(
+                type: VowType.game,
                 targetValue: v,
                 unit: '분',
                 operator: ConditionOperator.lte,
@@ -1415,9 +1415,9 @@ class _StepRecipientState extends State<_StepRecipient> {
 // ─────────────────────────────────────────────────────────
 
 class _StepSummary extends StatelessWidget {
-  final PledgeType type;
+  final VowType type;
   final String title;
-  final PledgeCondition condition;
+  final VowCondition condition;
   final int durationDays;
   final int penalty;
   final String recipient;
@@ -2365,8 +2365,8 @@ class _HourControls extends StatelessWidget {
 }
 
 class _SimpleConditionChips extends StatelessWidget {
-  final PledgeCondition condition;
-  final ValueChanged<PledgeCondition> onChanged;
+  final VowCondition condition;
+  final ValueChanged<VowCondition> onChanged;
   const _SimpleConditionChips(
       {required this.condition, required this.onChanged});
 
@@ -2395,18 +2395,18 @@ class _SimpleConditionChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final opts = switch (condition.type) {
-      PledgeType.sleep => _sleepOptions,
-      PledgeType.steps => _stepsOptions,
+      VowType.sleep => _sleepOptions,
+      VowType.steps => _stepsOptions,
       _ => _exerciseOptions,
     };
     final sectionLabel = switch (condition.type) {
-      PledgeType.sleep => '최소 수면 시간',
-      PledgeType.steps => '하루 목표 걸음수',
+      VowType.sleep => '최소 수면 시간',
+      VowType.steps => '하루 목표 걸음수',
       _ => '하루 운동 시간',
     };
     final sublabel = switch (condition.type) {
-      PledgeType.sleep => '이 시간 이상 수면해야 달성으로 인정됩니다.',
-      PledgeType.steps => '이 걸음수 이상 걸어야 달성으로 인정됩니다.',
+      VowType.sleep => '이 시간 이상 수면해야 달성으로 인정됩니다.',
+      VowType.steps => '이 걸음수 이상 걸어야 달성으로 인정됩니다.',
       _ => '이 시간 이상 운동해야 달성으로 인정됩니다.',
     };
     final labels = opts.map((o) => o.$1).toList();
@@ -2424,7 +2424,7 @@ class _SimpleConditionChips extends StatelessWidget {
         _OptionChipGroup(
           labels: labels,
           selectedIndex: idx < 0 ? 2 : idx,
-          onChanged: (i) => onChanged(PledgeCondition(
+          onChanged: (i) => onChanged(VowCondition(
             type: condition.type,
             targetValue: values[i],
             unit: condition.unit,

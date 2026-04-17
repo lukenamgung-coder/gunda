@@ -8,7 +8,7 @@ import '../../domain/models/enforcer.dart';
 import '../../domain/models/money.dart';
 import '../../domain/models/vow_stats.dart';
 import '../../shared/models/enums.dart';
-import '../../shared/models/pledge_condition.dart';
+import '../../shared/models/vow_condition.dart';
 
 /// Drift implementation of [VowRepository].
 ///
@@ -64,7 +64,7 @@ class DriftVowRepository implements VowRepository {
 
   ContractVow _mapVow(Vow row) {
     final condition =
-        PledgeCondition.fromJsonString(row.conditionJson);
+        VowCondition.fromJsonString(row.conditionJson);
 
     return ContractVow(
       id: row.id,

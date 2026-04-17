@@ -14,7 +14,7 @@
 - Material `Colors.*` 사용 금지 — 항상 `GundaColors.*` 사용
 
 ## 서약 카테고리 (7가지)
-| 카테고리 | PledgeType | 검증 방법 | 비고 |
+| 카테고리 | VowType | 검증 방법 | 비고 |
 |---------|-----------|---------|-----|
 | 디지털 디톡스 | screenTime | UsageStatsManager | 앱별 시간대/한도 |
 | 게임 | game | UsageStatsManager + PackageManager | 게임 앱 자동 감지 |
@@ -104,7 +104,7 @@ lib/
 │   ├── router/
 │   └── services/
 └── shared/
-    ├── models/      # enums.dart, PledgeCondition
+    ├── models/      # enums.dart, VowCondition, VowFormPreset
     └── theme/       # GundaColors, AppTheme
 ```
 
@@ -124,9 +124,9 @@ lib/
 | userId | int FK→users | |
 | title | text(1~100) | |
 | description | text? | |
-| pledgeType | text | PledgeType.name |
+| pledgeType | text | VowType.name (DB 컬럼명 유지, enum은 VowType) |
 | status | text | VowStatus.name (default: 'active') |
-| conditionJson | text | PledgeCondition JSON |
+| conditionJson | text | VowCondition JSON |
 | penaltyAmount | int | 위반 1회당 벌금 (원) |
 | penaltyRecipient | text? | `"이름\|전화번호\|관계"` 형식 |
 | startDate | datetime | |
@@ -162,14 +162,14 @@ lib/
 | 클래스 | 역할 |
 |--------|------|
 | `ContractVow` | 서약 aggregate root |
-| `ContractTerms` | 조건(PledgeCondition) + 기간(ContractDateRange) + 벌금(Money) |
+| `ContractTerms` | 조건(VowCondition) + 기간(ContractDateRange) + 벌금(Money) |
 | `Enforcer` | 집행자 값 객체. `fromStorageString()`으로 파싱, `toStorageString()`으로 저장 |
 | `Money` | 금액 값 객체. `formatted` → "10,000원" |
 | `ContractDateRange` | 날짜 범위. `elapsedDays`, `daysLeft`, `progressRatio`, `summaryLabel` |
 | `DomainViolation` | 위반 이벤트. `isPending`, `isPaid` |
 | `BehavioralInsight` | 스트릭 + 트렌드. `streakLabel`, `lastViolationLabel` |
 | `RiskSnapshot` | 리스크 스냅샷. `RiskLevel` (safe/warning/danger), `hasLiveData` |
-| `PledgeCondition` | 서약 조건 JSON 모델. `type`, `targetValue`, `targetApps`, `windowStartHour/EndHour`, `hasDurationLimit` |
+| `VowCondition` | 서약 조건 JSON 모델. `type`, `targetValue`, `targetApps`, `windowStartHour/EndHour`, `hasDurationLimit` |
 | `VowFormPreset` | 온보딩 프리셋 → 서약 만들기 전달 모델. GoRouter `extra`로 전달, `CreateVowScreen`이 step 2부터 시작 |
 
 ---
@@ -202,14 +202,13 @@ lib/
 - 알림 내용: "OO님이 서약을 어겨 N원을 보낼 예정입니다."
 
 #### 카카오 SDK 현황
-- **main.dart**: `KakaoSdk.init()` 호출 시 `'YOUR_KAKAO_NATIVE_APP_KEY'` 플레이스홀더 → 반드시 교체
-- **AndroidManifest.xml**: `KAKAO_NATIVE_APP_KEY` 플레이스홀더 → 반드시 교체
+- **main.dart** + **AndroidManifest.xml**: 네이티브 앱 키 `f5156bcd0dfed454ca9db9041ca4caf6` 설정 완료
 - 딥링크 콜백 핸들러(`gunda://kakaopay?violationId=X`) 구현 완료
 - 실제 결제 요청 UI (WebView/SDK 호출) 미구현
 
 ### 백그라운드 검증
 - AlarmManager.setExact() + ForegroundService (WorkManager 아님) — **서약별 개별 알람**
-- `PledgeMonitorService.kt` — 원시 SQLite 직접 접근 (Drift는 background isolate 불가)
+- `VowMonitorService.kt` — 원시 SQLite 직접 접근 (Drift는 background isolate 불가)
 - `VerificationAlarmReceiver.kt` — BroadcastReceiver, `vowId` extra를 서비스에 전달
 - `BootReceiver.kt` — 재부팅 후 모든 활성 서약 알람 재등록
 
@@ -224,8 +223,8 @@ lib/
 예: "배달앱 2회 이하" → 08:01 발화, 전날 실행 횟수 검증
 
 #### 알람 스케줄링 API
-- `PledgeMonitorService.scheduleAllActiveVowAlarms(context)` — DB에서 활성 서약 전체 읽어 각각 알람 등록. 앱 시작/서약 생성/재부팅 시 호출
-- `PledgeMonitorService.scheduleVowAlarm(context, vowId, conditionJson)` — 단일 서약 알람 등록. 요청코드 = `20000 + vowId`
+- `VowMonitorService.scheduleAllActiveVowAlarms(context)` — DB에서 활성 서약 전체 읽어 각각 알람 등록. 앱 시작/서약 생성/재부팅 시 호출
+- `VowMonitorService.scheduleVowAlarm(context, vowId, conditionJson)` — 단일 서약 알람 등록. 요청코드 = `20000 + vowId`
 - Dart 브릿지: `VerificationScheduleService.scheduleAllVows()` → MethodChannel `'scheduleAllVows'`
 
 #### 검증 후 알림

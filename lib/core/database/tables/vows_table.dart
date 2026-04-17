@@ -9,7 +9,7 @@ class Vows extends Table {
   TextColumn get title => text().withLength(min: 1, max: 100)();
   TextColumn get description => text().nullable()();
 
-  /// PledgeType.name 문자열 저장
+  /// VowType.name 문자열 저장
   /// (screenTime | sleep | steps | exercise | custom)
   TextColumn get pledgeType => text()();
 

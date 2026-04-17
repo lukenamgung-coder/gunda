@@ -66,7 +66,7 @@ const _kPresets = [
     amount: '₩5,000',
     tag: '가장 많이 시작한 서약',
     formPreset: VowFormPreset(
-      type: PledgeType.screenTime,
+      type: VowType.screenTime,
       durationDays: 3,
       penaltyAmount: 5000,
       screenTimePackages: [_kYoutubePackage],
@@ -81,7 +81,7 @@ const _kPresets = [
     label: '3일간 9시~18시 게임 금지',
     amount: '₩5,000',
     formPreset: VowFormPreset(
-      type: PledgeType.game,
+      type: VowType.game,
       durationDays: 3,
       penaltyAmount: 5000,
       gameTargetMinutes: 0,
@@ -93,7 +93,7 @@ const _kPresets = [
     label: '1주일간 배달앱 2회 이하',
     amount: '₩5,000',
     formPreset: VowFormPreset(
-      type: PledgeType.delivery,
+      type: VowType.delivery,
       durationDays: 7,
       penaltyAmount: 5000,
       deliveryFullBan: false,

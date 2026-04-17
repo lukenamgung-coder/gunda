@@ -1,5 +1,5 @@
 /// 서약 유형
-enum PledgeType {
+enum VowType {
   screenTime, // 스크린 타임 제한
   sleep,      // 수면 시간 확보
   steps,      // 걸음수 달성

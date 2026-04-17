@@ -1,4 +1,4 @@
-import '../../shared/models/pledge_condition.dart';
+import '../../shared/models/vow_condition.dart';
 import 'date_range.dart';
 import 'money.dart';
 
@@ -8,7 +8,7 @@ import 'money.dart';
 /// what you must do (condition), when (period), and
 /// what happens if you fail (penalty).
 class ContractTerms {
-  final PledgeCondition condition;
+  final VowCondition condition;
   final ContractDateRange period;
   final Money penalty;
 

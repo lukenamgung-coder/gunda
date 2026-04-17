@@ -3,7 +3,7 @@ import 'enums.dart';
 /// 온보딩 프리셋에서 서약 만들기 화면으로 전달되는 사전 설정값.
 /// GoRouter extra로 전달되며, CreateVowScreen에서 초기 상태를 채운다.
 class VowFormPreset {
-  final PledgeType type;
+  final VowType type;
   final int durationDays;
   final int penaltyAmount;
 

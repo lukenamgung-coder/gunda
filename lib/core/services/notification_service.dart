@@ -3,7 +3,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 /// Dart-side notification wrapper.
 ///
 /// Handles channel registration and app-side violation alerts.
-/// Background violations are notified directly by PledgeMonitorService (Kotlin).
+/// Background violations are notified directly by VowMonitorService (Kotlin).
 /// This service covers:
 ///   - Initialisation (channel setup, permission request)
 ///   - In-app violation alerts triggered from Dart (e.g. custom-type vow checks)

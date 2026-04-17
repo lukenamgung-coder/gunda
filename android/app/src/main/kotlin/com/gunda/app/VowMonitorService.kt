@@ -38,7 +38,7 @@ import java.util.Calendar
  * DB datetime storage: Drift NativeDatabase stores DateTime as ISO-8601 TEXT.
  * All date comparisons use string prefix matching ("YYYY-MM-DD").
  */
-class PledgeMonitorService : Service() {
+class VowMonitorService : Service() {
 
     private val job = SupervisorJob()
     private val scope = CoroutineScope(Dispatchers.IO + job)
